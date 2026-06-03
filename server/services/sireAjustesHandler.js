@@ -242,6 +242,17 @@ class SireAjustesHandler {
    */
   async cargarClientes() {
     try {
+      const clientStorage = require('./clientStorageService');
+      if (clientStorage && clientStorage.currentUserId) {
+        const clients = clientStorage.getAllClients();
+        const formattedClients = clients.map(c => ({
+          ruc: c.ruc,
+          empresa: c.empresa || c.razonSocial || `Empresa RUC ${c.ruc}`
+        }));
+        logger.info('Clientes cargados desde clientStorage', { cantidad: formattedClients.length });
+        return { success: true, clientes: formattedClients };
+      }
+
       const clientesPath = path.join(this.dataPath, 'CLIENTES.xlsx');
 
       // Verificar si existe el archivo
@@ -249,7 +260,7 @@ class SireAjustesHandler {
         await fs.access(clientesPath);
       } catch {
         logger.warn('Archivo CLIENTES.xlsx no encontrado');
-        return { success: false, error: 'No se encontrÃ³ el archivo CLIENTES.xlsx', clientes: [] };
+        return { success: false, error: 'No se encontró el archivo CLIENTES.xlsx', clientes: [] };
       }
 
       const workbook = XLSX.readFile(clientesPath);
@@ -257,23 +268,23 @@ class SireAjustesHandler {
       const sheet = workbook.Sheets[sheetName];
 
       if (!sheet) {
-        return { success: false, error: 'No se encontrÃ³ ninguna hoja en CLIENTES.xlsx', clientes: [] };
+        return { success: false, error: 'No se encontró ninguna hoja en CLIENTES.xlsx', clientes: [] };
       }
 
       // Convertir a JSON
       const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
       if (data.length < 2) {
-        return { success: false, error: 'El archivo CLIENTES.xlsx estÃ¡ vacÃ­o', clientes: [] };
+        return { success: false, error: 'El archivo CLIENTES.xlsx está vacío', clientes: [] };
       }
 
-      // Obtener Ã­ndices de columnas (primera fila son headers)
+      // Obtener índices de columnas (primera fila son headers)
       const headers = data[0];
       const empresaIdx = headers.findIndex(h => h && h.toString().toLowerCase().includes('empresa'));
       const rucIdx = headers.findIndex(h => h && h.toString().toLowerCase() === 'ruc');
 
       if (rucIdx === -1) {
-        return { success: false, error: 'No se encontrÃ³ la columna RUC en CLIENTES.xlsx', clientes: [] };
+        return { success: false, error: 'No se encontró la columna RUC en CLIENTES.xlsx', clientes: [] };
       }
 
       // Procesar filas de datos (desde la fila 2)
@@ -291,7 +302,7 @@ class SireAjustesHandler {
         }
       }
 
-      logger.info('Clientes cargados correctamente', { cantidad: clientes.length });
+      logger.info('Clientes cargados correctamente desde Excel', { cantidad: clientes.length });
       return { success: true, clientes };
 
     } catch (error) {

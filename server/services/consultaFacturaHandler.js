@@ -62,6 +62,24 @@ const TIPOS_COMPROBANTE = {
  */
 async function obtenerEmpresasDesdeExcel() {
   try {
+    const clientStorage = require('./clientStorageService');
+    if (clientStorage && clientStorage.currentUserId) {
+      const clients = clientStorage.getAllClients();
+      const empresasConCredenciales = clients.filter(c =>
+        c.clienteId && c.clienteSecret && c.ruc
+      ).map(c => ({
+        ruc: c.ruc,
+        razonSocial: c.empresa,
+        usuario_sol: c.usuario,
+        clave_sol: c.clave,
+        client_id: c.clienteId,
+        client_secret: c.clienteSecret
+      }));
+      return {
+        success: true,
+        empresas: empresasConCredenciales
+      };
+    }
     const facturasPath = path.join(process.cwd(), 'server', 'data', 'API_SIRE.xlsm');
 
     if (!fs.existsSync(facturasPath)) {
@@ -107,6 +125,23 @@ async function obtenerEmpresasDesdeExcel() {
  */
 async function obtenerCredencialesPorRuc(ruc) {
   try {
+    const clientStorage = require('./clientStorageService');
+    if (clientStorage && clientStorage.currentUserId) {
+      const cliente = clientStorage.getClient(ruc);
+      if (cliente) {
+        return {
+          success: true,
+          data: {
+            ruc: cliente.ruc,
+            razonSocial: cliente.empresa,
+            usuario_sol: cliente.usuario,
+            clave_sol: cliente.clave,
+            client_id: cliente.clienteId,
+            client_secret: cliente.clienteSecret
+          }
+        };
+      }
+    }
     const facturasPath = path.join(process.cwd(), 'server', 'data', 'API_SIRE.xlsm');
 
     if (!fs.existsSync(facturasPath)) {

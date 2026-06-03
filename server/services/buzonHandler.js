@@ -49,6 +49,21 @@ class BuzonHandler {
    */
   async obtenerClientes() {
     try {
+      const clientStorage = require('./clientStorageService');
+      if (clientStorage && clientStorage.currentUserId) {
+        const clients = clientStorage.getAllClients();
+        const clientesSeguros = clients.map(c => ({
+          ruc: c.ruc,
+          empresa: c.empresa,
+          usuario: c.usuario,
+          email: c.email || '',
+          whatsapp: c.whatsapp || ''
+        }));
+        return {
+          success: true,
+          clientes: clientesSeguros
+        };
+      }
       const clientesPath = path.join(process.cwd(), 'server', 'data', 'CLIENTES.xlsx');
 
       if (!fs.existsSync(clientesPath)) {
@@ -103,9 +118,18 @@ class BuzonHandler {
       }
 
       // Obtener credenciales del cliente
-      const clientesPath = path.join(process.cwd(), 'server', 'data', 'CLIENTES.xlsx');
-      const clientes = await excelReader.readClients(clientesPath);
-      const cliente = clientes.find(c => c.ruc === ruc);
+      const clientStorage = require('./clientStorageService');
+      let cliente = null;
+      if (clientStorage && clientStorage.currentUserId) {
+        cliente = clientStorage.getClient(ruc);
+      }
+      if (!cliente) {
+        const clientesPath = path.join(process.cwd(), 'server', 'data', 'CLIENTES.xlsx');
+        if (fs.existsSync(clientesPath)) {
+          const clientes = await excelReader.readClients(clientesPath);
+          cliente = clientes.find(c => c.ruc === ruc);
+        }
+      }
 
       if (!cliente) {
         return {

@@ -34,6 +34,21 @@ class CPEScrapingHandler {
      */
     async obtenerCredenciales(ruc) {
         try {
+            const clientStorage = require('./clientStorageService');
+            if (clientStorage && clientStorage.currentUserId) {
+                const cliente = clientStorage.getClient(ruc);
+                if (cliente) {
+                    return {
+                        success: true,
+                        data: {
+                            ruc: cliente.ruc,
+                            razonSocial: cliente.empresa,
+                            usuario_sol: cliente.usuario,
+                            clave_sol: cliente.clave
+                        }
+                    };
+                }
+            }
             const apiSirePath = path.join(process.cwd(), 'server', 'data', 'API_SIRE.xlsm');
 
             if (!fs.existsSync(apiSirePath)) {
@@ -66,6 +81,15 @@ class CPEScrapingHandler {
      */
     async obtenerEmpresas() {
         try {
+            const clientStorage = require('./clientStorageService');
+            if (clientStorage && clientStorage.currentUserId) {
+                const clients = clientStorage.getAllClients();
+                const empresas = clients.map(c => ({
+                    ruc: c.ruc,
+                    razonSocial: c.empresa
+                }));
+                return { success: true, empresas };
+            }
             const apiSirePath = path.join(process.cwd(), 'server', 'data', 'API_SIRE.xlsm');
 
             if (!fs.existsSync(apiSirePath)) {
