@@ -6,7 +6,9 @@ module.exports = {
     4: "https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/MenuInternet.htm" // Emitir Factura
   },
   PLAYWRIGHT: {
-    headless: process.env.PLAYWRIGHT_HEADLESS === 'true' || process.env.NODE_ENV === 'production',
+    headless: process.env.PLAYWRIGHT_HEADLESS !== undefined 
+      ? process.env.PLAYWRIGHT_HEADLESS === 'true' 
+      : process.env.NODE_ENV === 'production',
     timeout: 6000,         // ms para esperar selector txtRuc
     concurrency: 3,        // número de browsers simultáneos por defecto
     slowMo: 0
