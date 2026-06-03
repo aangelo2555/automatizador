@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.log
+logs/
+output/
+descargas_cpe/
+descargas_buzon/
+sire/
+temp/
+uploads/
+server/data/*.xlsx
+server/data/*.xlsm
+server/data/~$*
+.wwebjs_auth/

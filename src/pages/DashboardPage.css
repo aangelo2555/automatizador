@@ -1,0 +1,209 @@
+.dashboard-page {
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Welcome Card */
+.welcome-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25) !important;
+    padding: 24px !important;
+}
+
+.welcome-card .ant-typography {
+    color: white !important;
+}
+
+.welcome-card h2 {
+    color: white !important;
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.welcome-card p {
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+}
+
+/* Stat Cards */
+.stat-card {
+    border-radius: 12px !important;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+.stat-card .ant-statistic-title {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    margin-bottom: 8px !important;
+    color: rgba(0, 0, 0, 0.65) !important;
+}
+
+.stat-card .ant-statistic-content {
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+}
+
+.stat-card .ant-statistic-content-value {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Stat Card Colors */
+.stat-card-blue {
+    border-left: 4px solid #1890ff;
+}
+
+.stat-card-blue .anticon {
+    color: #1890ff;
+    font-size: 24px;
+}
+
+.stat-card-green {
+    border-left: 4px solid #52c41a;
+}
+
+.stat-card-green .anticon {
+    color: #52c41a;
+    font-size: 24px;
+}
+
+.stat-card-purple {
+    border-left: 4px solid #722ed1;
+}
+
+.stat-card-purple .anticon {
+    color: #722ed1;
+    font-size: 24px;
+}
+
+.stat-card-orange {
+    border-left: 4px solid #fa8c16;
+}
+
+.stat-card-orange .anticon {
+    color: #fa8c16;
+    font-size: 24px;
+}
+
+/* Clickable Stat Cards */
+.stat-card-clickable {
+    cursor: pointer;
+}
+
+.stat-card-clickable:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+.stat-card-clickable:active {
+    transform: translateY(-2px);
+}
+
+/* Plan Card Styling */
+.dashboard-page .ant-card-head-title {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: rgba(0, 0, 0, 0.85) !important;
+}
+
+.dashboard-page .ant-card-body {
+    padding: 24px !important;
+}
+
+.dashboard-page .ant-card-body h5 {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    margin: 16px 0 12px 0 !important;
+    color: rgba(0, 0, 0, 0.85) !important;
+}
+
+.dashboard-page .ant-card-body p {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: rgba(0, 0, 0, 0.65) !important;
+    margin-bottom: 16px !important;
+}
+
+.dashboard-page .ant-card-body ul {
+    padding-left: 20px !important;
+    margin-bottom: 16px !important;
+}
+
+.dashboard-page .ant-card-body ul li {
+    font-size: 14px !important;
+    line-height: 1.8 !important;
+    color: rgba(0, 0, 0, 0.75) !important;
+    margin-bottom: 8px !important;
+}
+
+/* Quick Access Buttons */
+.dashboard-page .ant-btn {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    height: 48px !important;
+}
+
+.dashboard-page .ant-btn .anticon {
+    font-size: 18px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dashboard-page {
+        padding: 0;
+    }
+
+    .stat-card .ant-statistic-content {
+        font-size: 28px !important;
+    }
+
+    .welcome-card h2 {
+        font-size: 24px !important;
+    }
+
+    .welcome-card p {
+        font-size: 14px !important;
+    }
+}
+
+/* Dark mode */
+.dark-mode .stat-card {
+    background: #1f1f1f !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark-mode .stat-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark-mode .stat-card .ant-statistic-title {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark-mode .dashboard-page .ant-card-head-title {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark-mode .dashboard-page .ant-card-body h5 {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark-mode .dashboard-page .ant-card-body p {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark-mode .dashboard-page .ant-card-body ul li {
+    color: rgba(255, 255, 255, 0.75) !important;
+}

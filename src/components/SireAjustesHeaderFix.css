@@ -1,0 +1,37 @@
+/* ============================================
+   SIRE AJUSTES HEADER - Estilo Buzón Electrónico
+   ============================================ */
+
+/* Header con gradiente - Estilo limpio */
+.sire-ajustes-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    color: white;
+}
+
+.sire-ajustes-header h2,
+.sire-header-content h2 {
+    color: white;
+    margin: 0 0 8px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.sire-ajustes-header h2 svg,
+.sire-header-content h2 svg {
+    flex-shrink: 0;
+    opacity: 0.9;
+}
+
+.sire-ajustes-subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    margin: 0;
+    text-align: center;
+}

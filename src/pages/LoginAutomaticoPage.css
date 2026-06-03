@@ -1,0 +1,151 @@
+/* Login Automático Page - Same styling as ClientesPage */
+
+.login-automatico-page {
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.header-card .ant-card-body {
+    padding: 32px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.header-left h2 {
+    color: white !important;
+}
+
+.header-left .ant-typography {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.header-right {
+    text-align: right;
+}
+
+.header-right .ant-typography {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Dark Mode Overrides */
+:root.dark-mode .header-card {
+    background: #1f1f1f !important;
+    background-image: none !important;
+}
+
+:root.dark-mode .login-automatico-page {
+    background: #141414 !important;
+}
+
+/* Force remove any background from wrapper divs */
+:root.dark-mode .login-automatico-page,
+:root.dark-mode .login-automatico-page>div,
+:root.dark-mode .ant-layout,
+:root.dark-mode .ant-layout-content,
+:root.dark-mode .dashboard-content,
+:root.dark-mode .main-content,
+:root.dark-mode .content-wrapper {
+    background: #141414 !important;
+    background-image: none !important;
+}
+
+:root.dark-mode .ant-card {
+    background: #1f1f1f !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-table {
+    background: #1f1f1f !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .ant-table-thead>tr>th {
+    background: #141414 !important;
+    color: #bfbfbf !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-table-tbody>tr>td {
+    background: #1f1f1f !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-table-tbody>tr:hover>td {
+    background: #333333 !important;
+}
+
+:root.dark-mode .ant-input,
+:root.dark-mode .ant-select-selector {
+    background: #141414 !important;
+    border-color: #434343 !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .ant-input:hover,
+:root.dark-mode .ant-select-selector:hover {
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .ant-input:focus,
+:root.dark-mode .ant-select-focused .ant-select-selector {
+    background: #1f1f1f !important;
+    border-color: #595959 !important;
+    box-shadow: 0 0 0 2px rgba(89, 89, 89, 0.2) !important;
+}
+
+:root.dark-mode .ant-select-dropdown {
+    background: #1f1f1f !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-select-item {
+    color: #e2e8f0 !important;
+}
+
+:root.dark-mode .ant-select-item:hover {
+    background: #333333 !important;
+}
+
+:root.dark-mode .ant-select-item-option-selected {
+    background: #333333 !important;
+}
+
+:root.dark-mode .ant-pagination-item {
+    background: #1f1f1f !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-pagination-item a {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .ant-pagination-item:hover {
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .ant-pagination-item-active {
+    background: #333333 !important;
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .ant-checkbox-inner {
+    background: #141414 !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .ant-checkbox-checked .ant-checkbox-inner {
+    background: #667eea !important;
+    border-color: #667eea !important;
+}

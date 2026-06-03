@@ -1,0 +1,108 @@
+.configuracion-page {
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.configuracion-page .ant-card {
+    border-radius: 12px;
+}
+
+.configuracion-page .ant-card-head-title {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+}
+
+.configuracion-page .ant-card-body {
+    padding: 24px !important;
+}
+
+.configuracion-page .ant-card-body h5 {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    margin: 16px 0 12px 0 !important;
+}
+
+.configuracion-page .ant-card-body p {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    margin-bottom: 12px !important;
+}
+
+.configuracion-page .ant-card-body ul {
+    padding-left: 20px !important;
+    margin-bottom: 16px !important;
+}
+
+.configuracion-page .ant-card-body ul li {
+    font-size: 14px !important;
+    line-height: 1.8 !important;
+    margin-bottom: 8px !important;
+}
+
+.service-card {
+    border-left: 4px solid #1890ff;
+    transition: all 0.3s ease;
+}
+
+.service-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.service-card h3 {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    margin-bottom: 12px !important;
+}
+
+.service-card p {
+    font-size: 14px !important;
+    color: rgba(0, 0, 0, 0.65) !important;
+}
+
+.service-card .ant-btn {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+}
+
+.configuracion-page .ant-tabs-tab {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    padding: 12px 20px;
+}
+
+.configuracion-page .ant-tabs-tab-active {
+    font-weight: 600 !important;
+}
+
+/* Dark mode */
+.dark-mode .service-card {
+    background: #1f1f1f !important;
+    border-left-color: #1890ff;
+}
+
+.dark-mode .service-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .service-card p {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark-mode .configuracion-page .ant-card-head-title {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark-mode .configuracion-page .ant-card-body h5 {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark-mode .configuracion-page .ant-card-body p {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark-mode .configuracion-page .ant-card-body ul li {
+    color: rgba(255, 255, 255, 0.75) !important;
+}

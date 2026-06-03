@@ -1,0 +1,31 @@
+/* ============================================
+   SIRE AJUSTES MODULE - Layout Fix
+   ============================================ */
+
+/* Asegurar que el módulo tenga layout vertical correcto */
+.sire-ajustes-module {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100% !important;
+    height: auto !important;
+    align-items: stretch !important;
+}
+
+/* El header debe estar arriba y ocupar todo el ancho */
+.sire-ajustes-header {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    order: -1 !important;
+    /* Asegurar que esté primero */
+}
+
+/* El contenido debe estar debajo del header */
+.sire-ajustes-content {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    flex: 1 !important;
+    width: 100% !important;
+}

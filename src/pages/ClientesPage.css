@@ -1,0 +1,139 @@
+.clientes-page {
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px !important;
+    padding: 24px !important;
+}
+
+.header-card .ant-typography {
+    color: white !important;
+}
+
+.header-card h2 {
+    color: white !important;
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.header-card p {
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.header-left {
+    flex: 1;
+}
+
+.header-right {
+    flex-shrink: 0;
+}
+
+.clientes-page .ant-btn {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+}
+
+.clientes-page .ant-input-search {
+    font-size: 14px !important;
+}
+
+.clientes-page .ant-table {
+    font-size: 14px !important;
+}
+
+.clientes-page .ant-table-thead>tr>th {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+}
+
+.clientes-page .ant-table-tbody>tr>td {
+    font-size: 14px !important;
+}
+
+.info-card {
+    background: #f0f7ff !important;
+    border-left: 4px solid #1890ff !important;
+}
+
+.info-card h5 {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: rgba(0, 0, 0, 0.85) !important;
+    margin-bottom: 12px !important;
+}
+
+.info-card p {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: rgba(0, 0, 0, 0.65) !important;
+}
+
+.info-card ul {
+    margin: 12px 0 !important;
+    padding-left: 24px !important;
+}
+
+.info-card li {
+    margin: 8px 0 !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: rgba(0, 0, 0, 0.75) !important;
+}
+
+.info-card li strong {
+    font-weight: 600 !important;
+}
+
+/* Dark mode */
+.dark-mode .info-card {
+    background: #1f1f1f !important;
+    border-left-color: #1890ff !important;
+}
+
+.dark-mode .info-card h5 {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark-mode .info-card p {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark-mode .info-card li {
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .header-right {
+        width: 100%;
+    }
+
+    .header-card h2 {
+        font-size: 24px !important;
+    }
+
+    .header-card p {
+        font-size: 14px !important;
+    }
+}

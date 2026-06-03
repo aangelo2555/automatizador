@@ -1,0 +1,8 @@
+/**
+ * App.css - Estilos globales de la aplicación
+ */
+
+.app {
+    min-height: 100vh;
+    background: #f5f7fa;
+}

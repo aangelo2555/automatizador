@@ -1,0 +1,455 @@
+/* Split Login Page Layout */
+.login-page-split {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #e8e0f0 0%, #d4c4e8 50%, #9b7bc7 100%);
+    margin: 0;
+    padding: 0;
+    /* Remove padding from container to avoid size issues */
+    box-sizing: border-box;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+/* Efectos de fondo */
+.login-page-split::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: moveBackground 30s linear infinite;
+}
+
+@keyframes moveBackground {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        transform: translate(60px, 60px);
+    }
+}
+
+/* Container principal */
+.login-container-split {
+    display: flex;
+    width: 100%;
+    max-width: 900px;
+    min-height: 550px;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    background: white;
+    position: relative;
+    z-index: 1;
+}
+
+/* Panel del Formulario (siempre ocupa el 58% izquierdo) */
+.login-form-panel {
+    flex: 0 0 58%;
+    background: white;
+    padding: 50px 45px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.form-content {
+    max-width: 360px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.form-title {
+    color: #1a1a2e;
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    margin-bottom: 20px !important;
+    font-style: italic;
+}
+
+.logo-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.logo-icon .anticon {
+    font-size: 28px;
+    color: white;
+}
+
+.subtitle {
+    display: block;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+/* Inputs personalizados */
+.login-form .custom-input {
+    border-radius: 25px !important;
+    padding: 12px 20px !important;
+    border: 1.5px solid #e0e0e0 !important;
+    background: #f8f8f8 !important;
+    transition: all 0.3s ease;
+    height: 50px !important;
+}
+
+.login-form .custom-input:hover,
+.login-form .custom-input:focus {
+    border-color: #764ba2 !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1) !important;
+}
+
+/* Ensure marginBottom for form items to accommodate error messages */
+.login-form .ant-form-item {
+    margin-bottom: 24px !important;
+}
+
+/* Fix overlapping error messages */
+.login-form .ant-form-item-explain {
+    position: absolute;
+    bottom: -22px;
+    left: 10px;
+    font-size: 12px;
+    color: #ff4d4f;
+}
+
+.login-form .ant-input-affix-wrapper {
+    border-radius: 25px !important;
+    padding: 0 20px !important;
+    border: 1.5px solid #e0e0e0 !important;
+    background: #f8f8f8 !important;
+    height: 50px !important;
+}
+
+.login-form .ant-input-affix-wrapper:hover,
+.login-form .ant-input-affix-wrapper-focused {
+    border-color: #764ba2 !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1) !important;
+}
+
+.login-form .ant-input-affix-wrapper .ant-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.input-icon {
+    color: #999;
+    font-size: 16px;
+    margin-right: 8px;
+}
+
+.plan-label {
+    color: #666;
+    font-weight: 500;
+}
+
+.plan-select .ant-select-selector {
+    border-radius: 25px !important;
+    height: 50px !important;
+    padding: 0 20px !important;
+    border: 1.5px solid #e0e0e0 !important;
+    background: #f8f8f8 !important;
+}
+
+.plan-select .ant-select-selector:hover {
+    border-color: #764ba2 !important;
+}
+
+/* Botón de Submit */
+.submit-btn {
+    width: 200px !important;
+    height: 50px !important;
+    border-radius: 25px !important;
+    background: linear-gradient(135deg, #f5a623 0%, #f7931a 100%) !important;
+    border: none !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    letter-spacing: 1px !important;
+    box-shadow: 0 4px 15px rgba(245, 166, 35, 0.4) !important;
+    transition: all 0.3s ease !important;
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(245, 166, 35, 0.5) !important;
+}
+
+.submit-btn:active {
+    transform: translateY(0) !important;
+}
+
+/* Panel de Bienvenida (ocupa el 42% derecho, pero con position absolute para animación) */
+.login-welcome-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 42%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6b4fb8 100%);
+    padding: 50px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-radius: 100px 0 0 100px;
+    overflow: hidden;
+    z-index: 10;
+    transition: left 0.6s ease-in-out, right 0.6s ease-in-out, border-radius 0.6s ease-in-out;
+}
+
+/* En modo registro: panel morado va a la izquierda */
+.login-container-split.register-mode .login-welcome-panel {
+    left: 0;
+    right: auto;
+    border-radius: 0 100px 100px 0;
+}
+
+/* En modo registro: formulario va a la derecha */
+.login-container-split.register-mode .login-form-panel {
+    margin-left: auto;
+}
+
+.login-welcome-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+}
+
+.welcome-content {
+    position: relative;
+    z-index: 1;
+}
+
+.welcome-title {
+    color: white !important;
+    font-size: 52px !important;
+    font-weight: 700 !important;
+    margin-bottom: 20px !important;
+}
+
+.welcome-text {
+    display: block;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 16px;
+    max-width: 280px;
+    margin: 0 auto 30px;
+    line-height: 1.6;
+}
+
+.toggle-btn {
+    width: 200px !important;
+    height: 50px !important;
+    border-radius: 25px !important;
+    border: 2px solid white !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    letter-spacing: 1px !important;
+    transition: all 0.3s ease !important;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Animaciones */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .login-page-split {
+        padding: 20px;
+    }
+
+    .login-container-split {
+        flex-direction: column;
+        max-width: 400px;
+    }
+
+    .login-form-panel {
+        flex: none;
+        width: 100%;
+        padding: 40px 30px;
+    }
+
+    .login-container-split.register-mode .login-form-panel {
+        margin-left: 0;
+    }
+
+    .login-welcome-panel {
+        position: relative;
+        width: 100%;
+        right: auto;
+        left: auto;
+        border-radius: 0 0 24px 24px !important;
+        padding: 40px 30px;
+    }
+
+    .login-container-split.register-mode .login-welcome-panel {
+        border-radius: 24px 24px 0 0 !important;
+        order: -1;
+    }
+
+    .form-title {
+        font-size: 26px !important;
+    }
+
+    .welcome-title {
+        font-size: 36px !important;
+    }
+
+    .submit-btn,
+    .toggle-btn {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-form-panel {
+        padding: 30px 20px;
+    }
+
+    .login-welcome-panel {
+        padding: 30px 20px;
+    }
+
+    .logo-icon {
+        width: 50px;
+        height: 50px;
+    }
+
+    .logo-icon .anticon {
+        font-size: 24px;
+    }
+}
+
+/* ============================================
+   DARK MODE - Login Page
+   ============================================ */
+:root.dark-mode .login-page-split {
+    background: #141414;
+}
+
+:root.dark-mode .login-container-split {
+    background: #1f1f1f;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+:root.dark-mode .login-form-panel {
+    background: #1f1f1f;
+}
+
+:root.dark-mode .form-title {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .subtitle {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+:root.dark-mode .plan-label {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+:root.dark-mode .login-form .custom-input {
+    background: #141414 !important;
+    border-color: #434343 !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .login-form .custom-input::placeholder {
+    color: #64748b;
+}
+
+:root.dark-mode .login-form .custom-input:hover,
+:root.dark-mode .login-form .custom-input:focus {
+    background: #1f1f1f !important;
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .login-form .ant-input-affix-wrapper {
+    background: #141414 !important;
+    border-color: #434343 !important;
+}
+
+:root.dark-mode .login-form .ant-input-affix-wrapper input {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .login-form .ant-input-affix-wrapper input::placeholder {
+    color: #64748b;
+}
+
+:root.dark-mode .login-form .ant-input-affix-wrapper:hover,
+:root.dark-mode .login-form .ant-input-affix-wrapper-focused {
+    background: #1f1f1f !important;
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .input-icon {
+    color: #64748b;
+}
+
+:root.dark-mode .plan-select .ant-select-selector {
+    background: #141414 !important;
+    border-color: #434343 !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .plan-select .ant-select-selector:hover {
+    background: #1f1f1f !important;
+    border-color: #595959 !important;
+}
+
+:root.dark-mode .plan-select .ant-select-selection-item {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root.dark-mode .plan-select .ant-select-arrow {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+/* Welcome Panel Override for Dark Mode */
+:root.dark-mode .login-welcome-panel {
+    background: linear-gradient(135deg, #1f1f1f 0%, #141414 100%) !important;
+}

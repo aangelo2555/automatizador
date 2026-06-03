@@ -1,0 +1,20 @@
+/* Agregado para centrar el contenido del header */
+.sire-header-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+/* Centrado del título del módulo SIRE */
+.sire-header {
+    text-align: center !important;
+}
+
+.sire-header h2 {
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100%;
+}
