@@ -130,9 +130,11 @@ app.post('/api/ipc/:channel', authMiddleware, async (req, res) => {
     
     // Client storage handlers
     if (channel === 'clients:get-all' && clientStorage) {
-      result = clientStorage.getAllClients();
+      const clients = clientStorage.getAllClients();
+      result = { success: true, clients };
     } else if (channel === 'clients:get' && clientStorage) {
-      result = clientStorage.getClient(args[0]);
+      const client = clientStorage.getClient(args[0]);
+      result = { success: !!client, client };
     } else if (channel === 'clients:add' && clientStorage) {
       result = clientStorage.addClient(args[0]);
     } else if (channel === 'clients:update' && clientStorage) {
@@ -140,7 +142,8 @@ app.post('/api/ipc/:channel', authMiddleware, async (req, res) => {
     } else if (channel === 'clients:delete' && clientStorage) {
       result = clientStorage.deleteClient(args[0]);
     } else if (channel === 'clients:search' && clientStorage) {
-      result = clientStorage.searchClients(args[0]);
+      const clients = clientStorage.searchClients(args[0]);
+      result = { success: true, clients };
     } else if (channel === 'clients:stats' && clientStorage) {
       result = clientStorage.getStats();
     } else if (channel === 'clients:import-excel' && clientStorage) {
