@@ -13,3 +13,4 @@ server/data/*.xlsx
 server/data/*.xlsm
 server/data/~$*
 .wwebjs_auth/
+package-lock.json
