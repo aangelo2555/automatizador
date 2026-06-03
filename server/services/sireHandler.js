@@ -88,7 +88,7 @@ class SireHandler {
    */
   async obtenerCredenciales(ruc) {
     try {
-      const clientStorage = require('./services/clientStorageService');
+      const clientStorage = require('./clientStorageService');
 
       // Obtener cliente desde storage
       const cliente = clientStorage.getClient(ruc);

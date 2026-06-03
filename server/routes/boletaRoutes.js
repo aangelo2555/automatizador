@@ -20,7 +20,7 @@ router.post('/connect', async (req, res) => {
   try {
     const handler = getBoletaHandler();
     if (!handler) return res.status(503).json({ success: false, error: 'Módulo Boleta no disponible' });
-    const result = await handler.connectInternal();
+    const result = await handler.connectInternal(req.body.ruc);
     res.json(result);
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -29,7 +29,16 @@ router.post('/process-internal', async (req, res) => {
   try {
     const handler = getBoletaHandler();
     if (!handler) return res.status(503).json({ success: false, error: 'Módulo Boleta no disponible' });
-    const result = await handler.processInternalBatch(req.body.items, req.body.flow);
+    const result = await handler.processInternalBatch(req.body.ruc, req.body.items, req.body.flow);
+    res.json(result);
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.post('/close-session', async (req, res) => {
+  try {
+    const handler = getBoletaHandler();
+    if (!handler) return res.status(503).json({ success: false, error: 'Módulo Boleta no disponible' });
+    const result = await handler.closeSession(req.body.ruc);
     res.json(result);
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

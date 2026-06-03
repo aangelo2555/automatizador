@@ -190,6 +190,15 @@ app.post('/api/ipc/:channel', authMiddleware, async (req, res) => {
     } else if (channel === 'boleta-config:delete') {
       const boletaConfigHandler = require('./services/boletaConfigHandler');
       result = await boletaConfigHandler.deleteConfig(args[0].ruc);
+    } else if (channel === 'boleta:connect') {
+      const boletaHandler = require('./services/boletaHandler');
+      result = await boletaHandler.connectInternal(args[0].ruc);
+    } else if (channel === 'boleta:process-internal') {
+      const boletaHandler = require('./services/boletaHandler');
+      result = await boletaHandler.processInternalBatch(args[0].ruc, args[0].items, args[0].flow);
+    } else if (channel === 'boleta:close-session') {
+      const boletaHandler = require('./services/boletaHandler');
+      result = await boletaHandler.closeSession(args[0].ruc);
     }
     // PDF & Excel handlers
     else if (channel === 'pdf:merge-files') {

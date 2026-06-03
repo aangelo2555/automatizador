@@ -326,6 +326,7 @@ const EmisionEspecificaTab = ({ allClientes, sessionId, runScript, waitForCondit
             }
 
             const result = await window.electronAPI.invoke('boleta:process-internal', {
+                ruc: clienteSeleccionado.ruc,
                 items: validItems,
                 flow: flowToSend
             });
@@ -585,60 +586,71 @@ const BoletaModule = () => {
         if (!clienteSeleccionado) return message.error('Seleccione un cliente');
         setConectandoLoading(true);
         try {
-            const cred = await window.electronAPI.invoke('cpe-obtener-credenciales', { rucConsultante: clienteSeleccionado.ruc });
-            if (!cred.success) throw new Error(cred.error);
-            const { ruc, usuario_sol, clave_sol } = cred.data;
-
             const wv = webviewRef.current;
-            wv.loadURL('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm');
+            if (wv && typeof wv.loadURL === 'function') {
+                const cred = await window.electronAPI.invoke('cpe-obtener-credenciales', { rucConsultante: clienteSeleccionado.ruc });
+                if (!cred.success) throw new Error(cred.error);
+                const { ruc, usuario_sol, clave_sol } = cred.data;
 
-            // Console Message Listener for Recorder
-            if (!wv._consoleAttached) {
-                wv.addEventListener('console-message', (e) => {
-                    if (e.message.startsWith('__RECORDER__:')) {
-                        try {
-                            const data = JSON.parse(e.message.replace('__RECORDER__:', ''));
-                            // Debounce
-                            setRecordedSteps(prev => {
-                                const last = prev[prev.length - 1];
-                                if (last && last.type === data.type && JSON.stringify(last.selectors) === JSON.stringify(data.selectors)) return prev;
+                wv.loadURL('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm');
 
-                                const niceStep = {
-                                    type: data.type === 'click' ? 'click' : 'type',
-                                    selectors: data.selectors,
-                                    ...(data.type !== 'click' ? { value: data.value } : {}),
-                                    keywords: data.selectors.flat().map(s => s.replace(/^(#|text\/|aria\/|pierce\/|xpath\/)/, ''))
-                                };
-                                return [...prev, niceStep];
-                            });
-                        } catch (err) { console.error('Rec Parse Error', err); }
-                    }
-                });
+                // Console Message Listener for Recorder
+                if (!wv._consoleAttached) {
+                    wv.addEventListener('console-message', (e) => {
+                        if (e.message.startsWith('__RECORDER__:')) {
+                            try {
+                                const data = JSON.parse(e.message.replace('__RECORDER__:', ''));
+                                // Debounce
+                                setRecordedSteps(prev => {
+                                    const last = prev[prev.length - 1];
+                                    if (last && last.type === data.type && JSON.stringify(last.selectors) === JSON.stringify(data.selectors)) return prev;
 
-                // Re-inject on navigation if recording
-                wv.addEventListener('did-navigate', () => {
-                    if (isRecording) setTimeout(injectRecorder, 1000);
-                });
-                wv.addEventListener('did-finish-load', () => {
-                    if (isRecording) setTimeout(injectRecorder, 1000);
-                });
+                                    const niceStep = {
+                                        type: data.type === 'click' ? 'click' : 'type',
+                                        selectors: data.selectors,
+                                        ...(data.type !== 'click' ? { value: data.value } : {}),
+                                        keywords: data.selectors.flat().map(s => s.replace(/^(#|text\/|aria\/|pierce\/|xpath\/)/, ''))
+                                    };
+                                    return [...prev, niceStep];
+                                });
+                            } catch (err) { console.error('Rec Parse Error', err); }
+                        }
+                    });
 
-                wv._consoleAttached = true;
-            }
+                    // Re-inject on navigation if recording
+                    wv.addEventListener('did-navigate', () => {
+                        if (isRecording) setTimeout(injectRecorder, 1000);
+                    });
+                    wv.addEventListener('did-finish-load', () => {
+                        if (isRecording) setTimeout(injectRecorder, 1000);
+                    });
 
-            await new Promise(r => wv.addEventListener('did-finish-load', r, { once: true }));
+                    wv._consoleAttached = true;
+                }
 
-            await waitForCondition(`!!document.getElementById('txtRuc')`, 10000);
-            await runScript(`document.getElementById('txtRuc').value='${ruc}'; document.getElementById('txtUsuario').value='${usuario_sol}'; document.getElementById('txtContrasena').value='${clave_sol}';`);
-            await runScript(`const b = document.getElementById('btnAceptar') || document.querySelector('button[type="submit"]'); if(b) b.click();`);
+                await new Promise(r => wv.addEventListener('did-finish-load', r, { once: true }));
+
+                await waitForCondition(`!!document.getElementById('txtRuc')`, 10000);
+                await runScript(`document.getElementById('txtRuc').value='${ruc}'; document.getElementById('txtUsuario').value='${usuario_sol}'; document.getElementById('txtContrasena').value='${clave_sol}';`);
+                await runScript(`const b = document.getElementById('btnAceptar') || document.querySelector('button[type="submit"]'); if(b) b.click();`);
 
 
-            if (await waitForCondition(`document.body.innerText.includes('Bienvenido') || !!document.querySelector('.nombre_usuario_fijo')`, 20000)) {
-                await runScript(`window.location.href = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=execute&code=11.5.4.1.1&s=ww1'`);
-                setSessionId(`session_${ruc}`);
-                Swal.fire({ icon: 'success', title: 'Conectado', timer: 1500 });
+                if (await waitForCondition(`document.body.innerText.includes('Bienvenido') || !!document.querySelector('.nombre_usuario_fijo')`, 20000)) {
+                    await runScript(`window.location.href = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=execute&code=11.5.4.1.1&s=ww1'`);
+                    setSessionId(`session_${ruc}`);
+                    Swal.fire({ icon: 'success', title: 'Conectado', timer: 1500 });
+                } else {
+                    throw new Error('No se pudo ingresar');
+                }
             } else {
-                throw new Error('No se pudo ingresar');
+                // Web Browser / Railway Flow: Connect via server-side Playwright
+                const res = await window.electronAPI.invoke('boleta:connect', { ruc: clienteSeleccionado.ruc });
+                if (res.success) {
+                    setSessionId(res.sessionId);
+                    Swal.fire({ icon: 'success', title: 'Conectado (Nube)', text: 'Sesión de boletas iniciada en el servidor', timer: 2000 });
+                } else {
+                    throw new Error(res.error);
+                }
             }
         } catch (e) {
             Swal.fire('Error', e.message, 'error');
@@ -692,57 +704,87 @@ const BoletaModule = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <Button type="primary" onClick={handleAbrirPortal} loading={conectandoLoading} disabled={!clienteSeleccionado || sessionId} block size="small">Abrir Portal SUNAT</Button>
-                                    {sessionId && <Button size="small" danger block style={{ marginTop: 5 }} onClick={() => { webviewRef.current.loadURL('about:blank'); setSessionId(null); }}>Cerrar Sesión</Button>}
-                                </Card>
-
-                                {/* Opciones SUNAT (Legacy) */}
-                                <Card size="small" title="⚙️ Opciones SUNAT" bodyStyle={{ padding: 8 }}>
-                                    <Form layout="vertical" size="small">
-                                        <Form.Item label="Tip. Doc"><Select value={formConfig.tipoDocumento} onChange={v => setFormConfig({ ...formConfig, tipoDocumento: v })}><Option value="-">SIN DOC</Option><Option value="1">DNI</Option><Option value="6">RUC</Option></Select></Form.Item>
-                                        <Form.Item label="Moneda"><Select value={formConfig.tipoMoneda} onChange={v => setFormConfig({ ...formConfig, tipoMoneda: v })}><Option value="PEN">Soles</Option><Option value="USD">Dólares</Option></Select></Form.Item>
-                                    </Form>
-                                </Card>
-
-                                {/* Items (Legacy) */}
-                                <Card size="small" title="📋 Items" extra={<Button size="small" icon={<PlusOutlined />} onClick={() => setBoletas(p => [...p, { key: Date.now().toString(), cantidad: '1', precio: '1', descripcion: 'ITEM' }])} />}>
-                                    <div style={{ maxHeight: 150, overflowY: 'auto' }}>
-                                        {boletas.map((b, idx) => (
-                                            <div key={b.key} style={{ borderBottom: '1px solid #eee', padding: 4, display: 'flex', gap: 4 }}>
-                                                <InputNumber size="small" style={{ width: 40 }} value={b.cantidad} onChange={v => { const n = [...boletas]; n[idx].cantidad = v; setBoletas(n) }} />
-                                                <Input size="small" style={{ flex: 1 }} value={b.descripcion} onChange={e => { const n = [...boletas]; n[idx].descripcion = e.target.value; setBoletas(n) }} />
-                                                <InputNumber size="small" style={{ width: 50 }} value={b.precio} onChange={v => { const n = [...boletas]; n[idx].precio = v; setBoletas(n) }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </Card>
-                            </div>
-                        </TabPane>
-
-                        <TabPane tab="⚡ Emisión Específica" key="especifica">
-                            <EmisionEspecificaTab
-                                allClientes={allClientes}
-                                sessionId={sessionId}
-                                runScript={runScript}
-                                waitForCondition={waitForCondition}
-                                isRecording={isRecording}
-                                toggleRecording={toggleRecording}
-                                recordedSteps={recordedSteps}
-                            />
-                        </TabPane>
-                    </Tabs>
-                </div>
-
-                {/* RIGHT COLUMN: WEBVIEW (Always Visible) */}
-                <div style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 8, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '8px 12px', background: '#f5f5f5', borderBottom: '1px solid #eee', fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>🌐 <b>Portal SUNAT</b> {sessionId ? '(Conectado)' : '(Desconectado)'}</span>
-                        <Space>
-                            <Button size="small" icon={<ReloadOutlined />} onClick={() => webviewRef.current.reload()} />
-                        </Space>
-                    </div>
-                    <webview ref={webviewRef} src="about:blank" style={{ width: '100%', flex: 1 }} allowpopups="true" partition="persist:sunat" webpreferences="contextIsolation=no, nodeIntegration=no" />
-                </div>
+                                     <Button type="primary" onClick={handleAbrirPortal} loading={conectandoLoading} disabled={!clienteSeleccionado || sessionId} block size="small">Abrir Portal SUNAT</Button>
+                                     {sessionId && <Button size="small" danger block style={{ marginTop: 5 }} onClick={async () => {
+                                         const wv = webviewRef.current;
+                                         if (wv && typeof wv.loadURL === 'function') {
+                                             wv.loadURL('about:blank');
+                                         } else {
+                                             await window.electronAPI.invoke('boleta:close-session', { ruc: clienteSeleccionado.ruc });
+                                         }
+                                         setSessionId(null);
+                                     }}>Cerrar Sesión</Button>}
+                                 </Card>
+ 
+                                 {/* Opciones SUNAT (Legacy) */}
+                                 <Card size="small" title="⚙️ Opciones SUNAT" bodyStyle={{ padding: 8 }}>
+                                     <Form layout="vertical" size="small">
+                                         <Form.Item label="Tip. Doc"><Select value={formConfig.tipoDocumento} onChange={v => setFormConfig({ ...formConfig, tipoDocumento: v })}><Option value="-">SIN DOC</Option><Option value="1">DNI</Option><Option value="6">RUC</Option></Select></Form.Item>
+                                         <Form.Item label="Moneda"><Select value={formConfig.tipoMoneda} onChange={v => setFormConfig({ ...formConfig, tipoMoneda: v })}><Option value="PEN">Soles</Option><Option value="USD">Dólares</Option></Select></Form.Item>
+                                     </Form>
+                                 </Card>
+ 
+                                 {/* Items (Legacy) */}
+                                 <Card size="small" title="📋 Items" extra={<Button size="small" icon={<PlusOutlined />} onClick={() => setBoletas(p => [...p, { key: Date.now().toString(), cantidad: '1', precio: '1', descripcion: 'ITEM' }])} />}>
+                                     <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+                                         {boletas.map((b, idx) => (
+                                             <div key={b.key} style={{ borderBottom: '1px solid #eee', padding: 4, display: 'flex', gap: 4 }}>
+                                                 <InputNumber size="small" style={{ width: 40 }} value={b.cantidad} onChange={v => { const n = [...boletas]; n[idx].cantidad = v; setBoletas(n) }} />
+                                                 <Input size="small" style={{ flex: 1 }} value={b.descripcion} onChange={e => { const n = [...boletas]; n[idx].descripcion = e.target.value; setBoletas(n) }} />
+                                                 <InputNumber size="small" style={{ width: 50 }} value={b.precio} onChange={v => { const n = [...boletas]; n[idx].precio = v; setBoletas(n) }} />
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </Card>
+                             </div>
+                         </TabPane>
+ 
+                         <TabPane tab="⚡ Emisión Específica" key="especifica">
+                             <EmisionEspecificaTab
+                                 allClientes={allClientes}
+                                 sessionId={sessionId}
+                                 runScript={runScript}
+                                 waitForCondition={waitForCondition}
+                                 isRecording={isRecording}
+                                 toggleRecording={toggleRecording}
+                                 recordedSteps={recordedSteps}
+                             />
+                         </TabPane>
+                     </Tabs>
+                 </div>
+ 
+                 {/* RIGHT COLUMN: WEBVIEW or Status Info (Always Visible) */}
+                 <div style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 8, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+                     <div style={{ padding: '8px 12px', background: '#f5f5f5', borderBottom: '1px solid #eee', fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                         <span>🌐 <b>Portal SUNAT</b> {sessionId ? '(Conectado)' : '(Desconectado)'}</span>
+                         <Space>
+                             <Button size="small" icon={<ReloadOutlined />} onClick={() => {
+                                 const wv = webviewRef.current;
+                                 if (wv && typeof wv.reload === 'function') wv.reload();
+                             }} />
+                         </Space>
+                     </div>
+                     {webviewRef.current && typeof webviewRef.current.loadURL === 'function' ? (
+                         <webview ref={webviewRef} src="about:blank" style={{ width: '100%', flex: 1 }} allowpopups="true" partition="persist:sunat" webpreferences="contextIsolation=no, nodeIntegration=no" />
+                     ) : (
+                         <div style={{ padding: 20, textAlign: 'center', margin: 'auto' }}>
+                             <div style={{ fontSize: 48, color: sessionId ? '#52c41a' : '#bfbfbf', marginBottom: 16 }}>
+                                 🌐
+                             </div>
+                             <h3>Control de Sesión de Navegador (Servidor)</h3>
+                             <p style={{ color: '#8c8c8c', maxWidth: 300, margin: '0 auto 16px', fontSize: 13 }}>
+                                 {sessionId 
+                                     ? `Sesión activa para RUC: ${clienteSeleccionado?.ruc || ''}. Las boletas se emitirán en segundo plano usando Playwright.` 
+                                     : 'No hay ninguna sesión activa. Seleccione un cliente y haga clic en "Abrir Portal SUNAT" para iniciar sesión en la nube.'}
+                             </p>
+                             {sessionId && (
+                                 <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, padding: '8px 16px', display: 'inline-block', color: '#389e0d', fontWeight: 'bold' }}>
+                                     ● CONECTADO EN NUBE
+                                 </div>
+                             )}
+                         </div>
+                     )}
+                 </div>
             </div>
         </div>
     );

@@ -1,9 +1,11 @@
-﻿// [WEB] Electron removed
+const { chromium } = require('playwright');
 const logger = require('./logger');
+const config = require('./config');
+const clientStorage = require('./clientStorageService');
 
 class BoletaHandler {
     constructor() {
-        this.targetWebContents = null;
+        this.activeSessions = new Map(); // ruc -> { browser, page }
     }
 
     /**
@@ -21,18 +23,13 @@ class BoletaHandler {
             let match;
             while ((match = locatorRegex.exec(line)) !== null) {
                 let sel = match[1];
-                // Convert recorder syntax to our syntax
                 if (sel.startsWith('::-p-xpath')) sel = 'xpath/' + sel.replace('::-p-xpath(', '').slice(0, -1);
                 else if (sel.startsWith('::-p-text')) sel = 'text/' + sel.replace('::-p-text(', '').slice(0, -1);
                 else if (sel.startsWith('::-p-aria')) sel = 'aria/' + sel.replace('::-p-aria(', '').slice(0, -1);
                 else if (sel.includes(':scope >>>')) sel = sel.split('>>>')[1].trim();
 
-                // Unescape
                 sel = sel.replace(/\\"/g, '"');
-
-                // IGNORE COMPLEX PUPPETEER CHAINS (>>>>) as they are hard to emulate efficiently.
-                // We typically have Alternative Selectors (IDs) in the same group that work better.
-                if (sel.includes('>>>>')) continue; // Skip this specific selector, rely on others
+                if (sel.includes('>>>>')) continue;
 
                 currentSelectors.push([sel]);
             }
@@ -57,285 +54,221 @@ class BoletaHandler {
     }
 
     /**
-     * Connect to the INTERNAL active Webview (EmisiÃ³n EspecÃ­fica)
-     * Instead of using ports/CDP, we use Electron's internal process manager.
+     * Connect to SUNAT using Playwright and navigate to Boleta page
      */
-    async connectInternal() {
+    async connectInternal(ruc) {
         try {
-            logger.info('Buscando WebContents interno de SUNAT...');
+            logger.info(`Iniciando conexión de Boletas para RUC: ${ruc}...`);
 
-            // 1. Get all webContents
-            const all = webContents.getAllWebContents();
-
-            // 2. Find the one that matches SUNAT URL and is NOT the main window
-            // The SUNAT webview usually has 'sunat.gob.pe'. The specific URL might vary.
-            // We ignore devtools and the main renderer (which is usually file:// or localhost:3000)
-            const sunatContents = all.find(wc => {
-                const url = wc.getURL();
-                return url && url.includes('sunat.gob.pe') && !url.includes('devtools://');
-            });
-
-            if (!sunatContents) {
-                const available = all.map(wc => wc.getURL()).join(', ');
-                logger.warn('URLs disponibles: ' + available);
-                throw new Error('No se encontrÃ³ la pestaÃ±a de "EmisiÃ³n EspecÃ­fica" cargada. Por favor navegue a la opciÃ³n de emisiÃ³n en el portal.');
+            const cliente = clientStorage.getClient(ruc);
+            if (!cliente) {
+                throw new Error(`No se encontró el cliente con RUC ${ruc} en la base de datos`);
             }
 
-            this.targetWebContents = sunatContents;
-            logger.info(`Objetivo encontrado: ${this.targetWebContents.getTitle()} [ID: ${this.targetWebContents.id}]`);
-            return { success: true };
+            const usuario_sol = cliente.usuario;
+            const clave_sol = cliente.clave;
+
+            if (!usuario_sol || !clave_sol) {
+                throw new Error(`El cliente ${ruc} no tiene credenciales SOL configuradas`);
+            }
+
+            await this.closeSession(ruc);
+
+            logger.info('Lanzando Chromium...');
+            const browser = await chromium.launch({
+                headless: config.PLAYWRIGHT.headless,
+                slowMo: config.PLAYWRIGHT.slowMo,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized'],
+                viewport: null
+            });
+
+            const context = await browser.newContext({ viewport: null });
+            const page = await context.newPage();
+            page.setDefaultTimeout(20000);
+
+            logger.info('Navegando a login SUNAT...');
+            await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000
+            });
+
+            logger.info('Rellenando credenciales...');
+            await page.waitForSelector('#txtRuc', { state: 'visible', timeout: 20000 });
+            await page.fill('#txtRuc', ruc);
+            await page.fill('#txtUsuario', usuario_sol);
+            await page.fill('#txtContrasena', clave_sol);
+            
+            logger.info('Haciendo clic en iniciar sesión...');
+            await page.click('#btnAceptar');
+
+            logger.info('Esperando carga de bienvenida...');
+            await page.waitForSelector('text=Bienvenido, .nombre_usuario_fijo', { timeout: 30000 }).catch(() => {
+                logger.warn('No se encontró el selector de bienvenida, continuando...');
+            });
+
+            logger.info('Navegando a Emisión de Boletas...');
+            await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=execute&code=11.5.4.1.1&s=ww1', {
+                waitUntil: 'networkidle',
+                timeout: 60000
+            });
+
+            this.activeSessions.set(ruc, { browser, page });
+            logger.info(`Sesión de Boleta activa guardada para RUC: ${ruc}`);
+
+            return { success: true, sessionId: ruc };
 
         } catch (error) {
-            logger.error('Error conectando internamente:', error);
+            logger.error('Error al conectar al portal de boletas:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Execute a JSON Flow on the internal page
+     * Close active session for a RUC
      */
-    async processInternalBatch(items, jsonFlow) {
-        if (!this.targetWebContents || this.targetWebContents.isDestroyed()) {
-            const conn = await this.connectInternal();
+    async closeSession(ruc) {
+        try {
+            const session = this.activeSessions.get(ruc);
+            if (session) {
+                logger.info(`Cerrando sesión de boletas para RUC: ${ruc}`);
+                await session.browser.close().catch(() => {});
+                this.activeSessions.delete(ruc);
+            }
+            return { success: true };
+        } catch (error) {
+            logger.error(`Error al cerrar sesión para RUC ${ruc}:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Close all active sessions
+     */
+    async closeAllSessions() {
+        try {
+            for (const ruc of this.activeSessions.keys()) {
+                await this.closeSession(ruc);
+            }
+            return { success: true, message: 'Todas las sesiones de boletas cerradas' };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Execute a JSON Flow on the active Playwright page
+     */
+    async processInternalBatch(ruc, items, flow) {
+        let session = this.activeSessions.get(ruc);
+        if (!session) {
+            logger.info(`Sesión no encontrada para RUC ${ruc}. Conectando automáticamente...`);
+            const conn = await this.connectInternal(ruc);
             if (!conn.success) return conn;
+            session = this.activeSessions.get(ruc);
         }
 
         const results = [];
         let errors = 0;
 
         try {
-            logger.info(`Iniciando Batch Interno (Nativo): ${items.length} items`);
+            const { page } = session;
+            logger.info(`Iniciando emisión de boletas en lote para ${items.length} items...`);
 
-            // Iterate items
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
-                logger.info(`Procesando item ${i + 1}/${items.length}`);
+                logger.info(`Procesando boleta ${i + 1}/${items.length}`);
 
-                // Execute the Flow for this item
-                const res = await this.executeFlow(jsonFlow, item);
-
+                const res = await this.executeFlow(page, flow, item);
                 results.push({ ...item, status: res.success ? 'success' : 'error', error: res.error });
                 if (!res.success) errors++;
 
-                // Small delay between boletas
-                await new Promise(r => setTimeout(r, 1000));
+                await page.waitForTimeout(1000);
             }
 
             return { success: true, results, errors };
 
-        } catch (e) {
-            logger.error('Error fatal procesando batch interno:', e);
-            return { success: false, error: e.message };
+        } catch (error) {
+            logger.error('Error procesando lote de boletas:', error);
+            return { success: false, error: error.message };
         }
     }
 
     /**
-     * Engine to execute steps from JSON using Electron Internal Injection
+     * Execute steps from JSON using Playwright
      */
-    async executeFlow(flow, itemData) {
+    async executeFlow(page, flow, itemData) {
         try {
-            if (!flow || !flow.length) return { success: false, error: 'Flujo vacÃ­o' };
+            if (!flow || !flow.length) return { success: false, error: 'Flujo vacío' };
 
-            // Helper to replace variables {item.foo} in values
             const resolveValue = (val) => {
                 if (typeof val !== 'string') return val;
                 if (val.startsWith('{') && val.endsWith('}')) {
-                    const key = val.slice(1, -1); // item.cantidad
-                    const prop = key.split('.')[1]; // cantidad
+                    const key = val.slice(1, -1);
+                    const prop = key.split('.')[1];
                     if (itemData[prop] !== undefined) return itemData[prop].toString();
                 }
                 return val;
             };
 
             for (const step of flow) {
-                // Determine selectors
-                // Step.selectors is array of groups: [['#id'], ['xpath/...']]
                 const selectors = step.selectors ? step.selectors.map(s => s[0]) : [];
-                // Add keyword fallback?
                 if (selectors.length === 0 && step.keywords) {
                     selectors.push(`text/${step.keywords[0]}`);
                 }
-
                 if (selectors.length === 0) continue;
 
-                // Action Logic
                 const actionType = step.type;
                 const valueToType = (actionType === 'type' || actionType === 'change') ? resolveValue(step.value) : null;
 
-                // Find and Execute in Frames
-                const success = await this.findAndExecInFrames(selectors, actionType, valueToType);
+                let success = false;
+                const frames = page.frames();
 
-                if (!success) {
-                    logger.warn(`No se pudo ejecutar paso ${step.type} en selectores: ${selectors.join(', ')}`);
-                    // Continue or fail? Continue to be resilient like finding "No thanks" popups.
-                    continue;
+                for (const frame of frames) {
+                    for (let selector of selectors) {
+                        try {
+                            let pwSelector = selector;
+                            if (selector.startsWith('xpath/')) {
+                                pwSelector = 'xpath=' + selector.replace('xpath/', '');
+                            } else if (selector.startsWith('text/')) {
+                                pwSelector = `text=${selector.replace('text/', '')}`;
+                            } else if (selector.startsWith('aria/')) {
+                                pwSelector = `role=${selector.replace('aria/', '')}`;
+                            } else if (selector.startsWith('pierce/')) {
+                                pwSelector = selector.replace('pierce/', '');
+                            }
+
+                            const handle = await frame.waitForSelector(pwSelector, { timeout: 1000, state: 'visible' }).catch(() => null);
+                            if (handle) {
+                                if (actionType === 'click') {
+                                    await handle.click();
+                                } else if (actionType === 'type' || actionType === 'change') {
+                                    await handle.fill('');
+                                    await handle.type(valueToType);
+                                } else if (actionType === 'press') {
+                                    await handle.press(step.value || 'Enter');
+                                }
+                                success = true;
+                                break;
+                            }
+                        } catch (e) {
+                            // Selector failed in this frame, try next
+                        }
+                    }
+                    if (success) break;
                 }
 
-                // Wait logic simulation
-                await new Promise(r => setTimeout(r, 500));
+                if (!success) {
+                    logger.warn(`No se pudo ejecutar paso ${step.type} en ningún frame`);
+                }
+                await page.waitForTimeout(500);
             }
 
             return { success: true };
 
-        } catch (e) {
-            return { success: false, error: e.message };
+        } catch (error) {
+            return { success: false, error: error.message };
         }
     }
-
-    /**
-     * Recursively search frames and execute action if element found
-     */
-    async findAndExecInFrames(selectors, actionType, value) {
-        // Retry configuration
-        const MAX_RETRIES = 10;
-        const RETRY_DELAY = 800;
-
-        // Helper to flatten frame tree
-        const getAllFrames = (root) => {
-            let list = [root];
-            for (const child of root.frames) list = list.concat(getAllFrames(child));
-            return list;
-        };
-
-        // Define the script to run in the renderer
-        const injectionScript = (sels, type, val) => {
-            // Robust Deep Query (Shadow DOM support)
-            const queryDeep = (root, selector) => {
-                let found = root.querySelector(selector);
-                if (found) return found;
-                // Walk shadow roots
-                const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
-                while (walker.nextNode()) {
-                    const el = walker.currentNode;
-                    if (el.shadowRoot) {
-                        found = queryDeep(el.shadowRoot, selector);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            };
-
-            const findEl = (s) => {
-                try {
-                    // XPATH (No Shadow DOM support easily)
-                    if (s.startsWith('xpath/')) {
-                        return document.evaluate(s.replace('xpath/', ''), document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                    }
-                    // TEXT
-                    if (s.startsWith('text/')) {
-                        const t = s.replace('text/', '');
-                        if (t === 'undefined') return null;
-                        const x = `//*[contains(text(), '${t}')]`;
-                        const r = document.evaluate(x, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                        if (r.singleNodeValue) return r.singleNodeValue;
-                        return document.evaluate(`//*[@value='${t}' or @placeholder='${t}' or @aria-label='${t}']`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                    }
-                    // ARIA
-                    if (s.startsWith('aria/')) {
-                        const k = s.replace('aria/', '');
-                        return document.querySelector(`[aria-label="${k}"], [aria-description="${k}"], [role="${k}"]`);
-                    }
-
-                    // CSS / ID
-                    let css = s.startsWith('pierce/') ? s.replace('pierce/', '') : s;
-
-                    // 1. Try ID direct (Fastest)
-                    if (css.startsWith('#') && css.includes('.')) {
-                        const id = css.substring(1).replace(/\\./g, '.');
-                        const el = document.getElementById(id);
-                        if (el) return el;
-                    }
-
-                    // 2. Try Standard Query (Light DOM)
-                    try {
-                        const el = document.querySelector(css);
-                        if (el) return el;
-                    } catch (e) { }
-
-                    // 3. Try Deep Query (Shadow DOM) - Expensive but necessary for some components
-                    // Only do this if plain query failed
-                    return queryDeep(document.body, css);
-
-                } catch (e) { return null; }
-            };
-
-            // Trigger events
-            const triggerEvents = (el) => {
-                const makeEvent = (name) => new Event(name, { bubbles: true, cancelable: true });
-                el.dispatchEvent(makeEvent('focus'));
-                el.dispatchEvent(makeEvent('mouseover'));
-                el.dispatchEvent(makeEvent('mousedown'));
-                el.dispatchEvent(makeEvent('mouseup'));
-                el.dispatchEvent(makeEvent('change'));
-            };
-
-            for (const sel of sels) {
-                const el = findEl(sel);
-                if (el && el.style.display !== 'none') {
-                    if (type === 'click') {
-                        triggerEvents(el);
-                        el.click();
-                    } else if (type === 'type' || type === 'change') {
-                        el.focus();
-                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                        if (nativeInputValueSetter && el instanceof window.HTMLInputElement) {
-                            nativeInputValueSetter.call(el, val);
-                        } else {
-                            el.value = val;
-                        }
-                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                        el.blur();
-                    } else if (type === 'press') {
-                        const target = document.activeElement || document.body;
-                        target.dispatchEvent(new KeyboardEvent('keydown', { key: val, code: val, which: 13, bubbles: true }));
-                        target.dispatchEvent(new KeyboardEvent('keypress', { key: val, code: val, which: 13, bubbles: true }));
-                        target.dispatchEvent(new KeyboardEvent('keyup', { key: val, code: val, which: 13, bubbles: true }));
-                    }
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        const code = `(${injectionScript.toString()})(${JSON.stringify(selectors)}, "${actionType}", ${JSON.stringify(value)})`;
-
-        // RETRY LOOP
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            if (this.targetWebContents.isDestroyed()) return false;
-
-            // Update frames
-            const frames = getAllFrames(this.targetWebContents.mainFrame);
-
-            // DEBUG LOGGING ONCE
-            if (attempt === 0) {
-                // Check ready state of main
-                const ready = await this.targetWebContents.executeJavaScript('document.readyState').catch(() => 'unknown');
-                logger.info(`Estado Pagina: ${ready} | Frames: ${frames.length}`);
-
-                // LOG BODY PREVIEW to verify content
-                for (let i = 0; i < frames.length; i++) {
-                    try {
-                        // Print first 200 chars of body text to see what frame contains
-                        const snippet = await frames[i].executeJavaScript('document.body ? document.body.innerText.substring(0, 100).replace(/\\n/g, " ") : "No Body"').catch(() => 'Blocked');
-                        const url = frames[i].url;
-                        logger.info(`Frame ${i} [${url.substring(0, 30)}...]: "${snippet}..."`);
-                    } catch (e) { }
-                }
-            }
-
-            for (const frame of frames) {
-                const res = await frame.executeJavaScript(code).catch(e => null);
-                if (res === true) return true;
-            }
-
-            await new Promise(r => setTimeout(r, RETRY_DELAY));
-        }
-
-        return false;
-    }
-
 }
 
 module.exports = new BoletaHandler();
-
