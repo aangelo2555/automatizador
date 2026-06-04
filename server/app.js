@@ -117,6 +117,63 @@ const uploadRoutes = require('./routes/uploadRoutes');
 // Public routes
 app.use('/api/auth', authRoutes);
 
+app.get('/api/email-diagnostics', async (req, res) => {
+  const dns = require('dns').promises;
+  const net = require('net');
+  const results = {
+    dns: {},
+    tcp465: null,
+    tcp587: null
+  };
+
+  try {
+    results.dns.smtp_gmail_com = await dns.resolve4('smtp.gmail.com');
+  } catch (err) {
+    results.dns.smtp_gmail_com_error = err.message;
+  }
+
+  try {
+    results.dns.smtp_gmail_com_v6 = await dns.resolve6('smtp.gmail.com');
+  } catch (err) {
+    results.dns.smtp_gmail_com_v6_error = err.message;
+  }
+
+  const testConnection = (host, port) => {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      let completed = false;
+
+      socket.setTimeout(5000);
+
+      socket.connect(port, host, () => {
+        completed = true;
+        socket.destroy();
+        resolve({ success: true });
+      });
+
+      socket.on('error', (err) => {
+        if (!completed) {
+          completed = true;
+          resolve({ success: false, error: err.message });
+        }
+      });
+
+      socket.on('timeout', () => {
+        if (!completed) {
+          completed = true;
+          socket.destroy();
+          resolve({ success: false, error: 'Timeout after 5000ms' });
+        }
+      });
+    });
+  };
+
+  results.tcp465 = await testConnection('smtp.gmail.com', 465);
+  results.tcp587 = await testConnection('smtp.gmail.com', 587);
+
+  res.json({ success: true, results });
+});
+
 // Protected routes
 app.use('/api/clients', authMiddleware, clientRoutes);
 app.use('/api/config', authMiddleware, configRoutes);
