@@ -1338,7 +1338,7 @@ function ConsultaFacturaModule() {
 
       if (result.success) {
         // Trigger browser download by requesting file from backend
-        const downloadUrl = `${window.location.origin}/api/cpe/download?path=${encodeURIComponent(result.path)}&token=${encodeURIComponent(localStorage.getItem('token') || '')}`;
+        const downloadUrl = `${window.location.origin}/api/cpe/download?path=${encodeURIComponent(result.path)}&token=${encodeURIComponent(localStorage.getItem('authToken') || '')}`;
         window.open(downloadUrl, '_blank');
 
         Swal.fire({
