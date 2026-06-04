@@ -2,6 +2,7 @@
 FROM node:20-slim AS build-stage
 WORKDIR /app
 COPY package*.json ./
+COPY server/postinstall.js ./server/
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm install
 COPY . .
@@ -19,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
+COPY server/postinstall.js ./server/
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm install --omit=dev
 
