@@ -208,16 +208,30 @@ router.all('/sunat-proxy/:sessionId/:targetDomain/*', async (req, res) => {
     return res.status(404).send('Sesión de SUNAT no encontrada o expirada en el servidor.');
   }
 
-  // Build Cookie header
+  // Build Cookie header with relaxed domain matching (e.g. sunat.gob.pe matches subdomains)
   const matchedCookies = session.cookies.filter(c => {
-    const cookieDomain = c.domain.toLowerCase();
+    let cookieDomain = c.domain.toLowerCase();
     const reqDomain = targetDomain.toLowerCase();
-    if (cookieDomain.startsWith('.')) {
-      return reqDomain.endsWith(cookieDomain) || reqDomain === cookieDomain.substring(1);
+    
+    if (!cookieDomain.startsWith('.')) {
+      cookieDomain = '.' + cookieDomain;
     }
-    return reqDomain === cookieDomain;
+    
+    const domainMatches = reqDomain.endsWith(cookieDomain) || reqDomain === cookieDomain.substring(1);
+    
+    // Path check
+    const cookiePath = c.path || '/';
+    const targetPath = '/' + pathSuffix;
+    const pathMatches = targetPath.startsWith(cookiePath);
+    
+    return domainMatches && pathMatches;
   });
+  
   const cookieHeader = matchedCookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+  logger.info(`[Proxy Request] ${req.method} -> ${targetUrl}`);
+  logger.info(`[Proxy Cookies] Total: ${session.cookies.length}, Match: ${matchedCookies.length}`);
+  logger.info(`[Proxy Match Names] ${matchedCookies.map(c => `${c.name}(${c.domain})`).join(', ')}`);
 
   try {
     const axios = require('axios');
