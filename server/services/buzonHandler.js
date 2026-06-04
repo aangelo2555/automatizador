@@ -10,9 +10,24 @@ const excelReader = require('./excelReader');
  * Permite consultar notificaciones y mensajes del buzÃ³n de clientes
  */
 class BuzonHandler {
+  get downloadPath() {
+    const userStorageManager = require('./userStorageManager');
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      const userDir = userStorageManager.getUserFolderPath('downloads');
+      if (!fs.existsSync(userDir)) {
+        fs.mkdirSync(userDir, { recursive: true });
+      }
+      return userDir;
+    }
+    const defaultDir = path.join(process.cwd(), 'descargas_buzon');
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    return defaultDir;
+  }
   constructor() {
     this.activeSessions = new Map(); // browserId -> { browser, page, cliente }
-    this.downloadPath = path.join(process.cwd(), 'descargas_buzon');
+    // downloadPath is dynamic getter
     this.ensureDirectories();
   }
 
@@ -37,7 +52,7 @@ class BuzonHandler {
    * Asegura que existan los directorios necesarios
    */
   ensureDirectories() {
-    if (!fs.existsSync(this.downloadPath)) {
+    if (this.downloadPath && !fs.existsSync(this.downloadPath)) {
       fs.mkdirSync(this.downloadPath, { recursive: true });
       logger.info('Directorio de descargas del buzÃ³n creado', { path: this.downloadPath });
     }

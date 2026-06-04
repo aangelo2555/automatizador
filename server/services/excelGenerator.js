@@ -7,17 +7,20 @@ const logger = require('./logger');
  * Generador de archivos Excel para SIRE
  */
 class ExcelGenerator {
-  constructor() {
-    this.outputDir = path.join(process.cwd(), 'output');
-    this.ensureOutputDir();
+  get outputDir() {
+    const userStorageManager = require('./userStorageManager');
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      return userStorageManager.getUserFolderPath('sire-files');
+    }
+    return path.join(process.cwd(), 'output');
   }
 
   /**
    * Asegura que exista el directorio de salida
    */
-  ensureOutputDir() {
-    if (!fs.existsSync(this.outputDir)) {
-      fs.mkdirSync(this.outputDir, { recursive: true });
+  ensureOutputDir(dirPath = this.outputDir) {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
     }
   }
 

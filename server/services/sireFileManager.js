@@ -7,21 +7,24 @@ const logger = require('./logger');
  * Gestor de archivos SIRE descargados
  */
 class SireFileManager {
-  constructor() {
-    const projectRoot = process.cwd();
-    this.outputDir = path.join(projectRoot, 'output');
-
-    // Crear directorio si no existe
-    if (!fs.existsSync(this.outputDir)) {
-      fs.mkdirSync(this.outputDir, { recursive: true });
-      logger.info('Directorio output creado', { path: this.outputDir });
+  get outputDir() {
+    const userStorageManager = require('./userStorageManager');
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      const userDir = userStorageManager.getUserFolderPath('sire-files');
+      if (!fs.existsSync(userDir)) {
+        fs.mkdirSync(userDir, { recursive: true });
+      }
+      return userDir;
     }
+    const defaultDir = path.join(process.cwd(), 'output');
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    return defaultDir;
+  }
 
-    logger.info('SireFileManager inicializado', {
-      projectRoot,
-      outputDir: this.outputDir,
-      exists: fs.existsSync(this.outputDir)
-    });
+  constructor() {
+    logger.info('SireFileManager inicializado');
   }
 
   /**

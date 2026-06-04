@@ -12,14 +12,29 @@ const axios = require('axios');
  * Portal: https://e-factura.sunat.gob.pe
  */
 class CPEScrapingHandler {
+    get downloadPath() {
+        const userStorageManager = require('./userStorageManager');
+        if (userStorageManager && userStorageManager.isInitialized()) {
+            const userDir = userStorageManager.getUserFolderPath('downloads');
+            if (!fs.existsSync(userDir)) {
+                fs.mkdirSync(userDir, { recursive: true });
+            }
+            return userDir;
+        }
+        const defaultDir = path.join(process.cwd(), 'descargas_cpe');
+        if (!fs.existsSync(defaultDir)) {
+            fs.mkdirSync(defaultDir, { recursive: true });
+        }
+        return defaultDir;
+    }
     constructor() {
         this.activeSessions = new Map();
-        this.downloadPath = path.join(process.cwd(), 'descargas_cpe');
+        // downloadPath is dynamic getter
         this.ensureDirectories();
     }
 
     ensureDirectories() {
-        if (!fs.existsSync(this.downloadPath)) {
+        if (this.downloadPath && !fs.existsSync(this.downloadPath)) {
             fs.mkdirSync(this.downloadPath, { recursive: true });
             logger.info('Directorio de descargas CPE creado', { path: this.downloadPath });
         }

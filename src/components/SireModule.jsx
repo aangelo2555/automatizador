@@ -492,6 +492,29 @@ const SireModule = () => {
           console.error('Error actualizando stats:', statError);
         }
 
+        // Descargar automáticamente el archivo en Chrome
+        if (result.excelPath) {
+          try {
+            let nombreRelativo = result.excelPath;
+            const sireFilesIndex = nombreRelativo.replace(/\\/g, '/').indexOf('/sire-files/');
+            const outputIndex = nombreRelativo.replace(/\\/g, '/').indexOf('/output/');
+            
+            if (sireFilesIndex !== -1) {
+              nombreRelativo = result.excelPath.substring(sireFilesIndex + 12);
+            } else if (outputIndex !== -1) {
+              nombreRelativo = result.excelPath.substring(outputIndex + 8);
+            } else {
+              const parts = nombreRelativo.split(/[\\/]/);
+              if (parts.length >= 2) {
+                nombreRelativo = parts.slice(-2).join('/');
+              }
+            }
+            window.electronAPI.abrirArchivoSire(nombreRelativo);
+          } catch (downloadErr) {
+            console.error('Error al iniciar la descarga automática:', downloadErr);
+          }
+        }
+
         Swal.fire({
           icon: 'success',
           title: 'Proceso SIRE completado',
@@ -508,7 +531,7 @@ const SireModule = () => {
               <div style="margin-bottom: 12px;">
                 <strong style="color: #667eea;">💾 Archivo:</strong>
                 <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; margin-top: 6px; font-family: monospace; font-size: 11px; word-break: break-all;">
-                  ${result.excelPath}
+                  ${result.excelPath.split(/[\\/]/).pop()}
                 </div>
               </div>
             </div>
