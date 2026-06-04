@@ -32,6 +32,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'automatizador-sunat-secret-key-202
 
 // Auth middleware
 const authMiddleware = (req, res, next) => {
+  // Permitir acceso sin JWT al proxy de SUNAT ya que usa un sessionId seguro y dinámico en la URL
+  if (req.originalUrl && req.originalUrl.includes('/sunat-proxy/')) {
+    return next();
+  }
+
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1];
   
