@@ -2887,11 +2887,10 @@ function ConsultaFacturaModule() {
               </div>
 
               {visualizacionData.targetUrl ? (
-                <webview
+                <iframe
                   ref={visualizarWebviewRef}
-                  src={visualizacionData.targetUrl}
-                  style={{ flex: 1, width: '100%', border: 'none', background: 'white' }}
-                  allowpopups="true"
+                  src={visualizacionData.targetUrl.replace('https://', `/api/cpe/sunat-proxy/${visualizacionData.sessionId}/`)}
+                  style={{ flex: 1, width: '100%', border: 'none', background: 'white', minHeight: '600px' }}
                 />
               ) : (
                 <div className="cf-placeholder" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -2926,11 +2925,10 @@ function ConsultaFacturaModule() {
               </div>
 
               {emitirData.targetUrl ? (
-                <webview
+                <iframe
                   ref={emitirWebviewRef}
-                  src={emitirData.targetUrl}
-                  style={{ flex: 1, width: '100%', border: 'none', background: 'white' }}
-                  allowpopups="true"
+                  src={emitirData.targetUrl.replace('https://', `/api/cpe/sunat-proxy/${emitirData.sessionId}/`)}
+                  style={{ flex: 1, width: '100%', border: 'none', background: 'white', minHeight: '600px' }}
                 />
               ) : (
                 <div className="cf-placeholder" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>

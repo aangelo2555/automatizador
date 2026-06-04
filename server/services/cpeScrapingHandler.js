@@ -27,10 +27,26 @@ class CPEScrapingHandler {
         }
         return defaultDir;
     }
+
     constructor() {
         this.activeSessions = new Map();
-        // downloadPath is dynamic getter
+        this.proxySessions = new Map();
         this.ensureDirectories();
+
+        // Limpiar sesiones inactivas de proxy cada 10 minutos (sesiones de mas de 2 horas)
+        setInterval(() => {
+            try {
+                const now = Date.now();
+                for (const [sid, sess] of this.proxySessions.entries()) {
+                    if (now - sess.createdAt > 7200000) {
+                        this.proxySessions.delete(sid);
+                        logger.info(`Sesión proxy expirada y eliminada: ${sid}`);
+                    }
+                }
+            } catch (err) {
+                logger.error('Error en limpieza de sesiones proxy:', err);
+            }
+        }, 600000);
     }
 
     ensureDirectories() {
@@ -1308,6 +1324,14 @@ class CPEScrapingHandler {
             // Crear ID de sesiÃ³n
             const sessionId = `visualizacion_${rucConsultante}_${Date.now()}`;
 
+            // Guardar cookies y datos en el proxySessions
+            this.proxySessions.set(sessionId, {
+                cookies,
+                clienteRuc: cliente.ruc,
+                clienteRazon: cliente.razonSocial,
+                createdAt: Date.now()
+            });
+
             // Cerrar browser de Playwright - ya no lo necesitamos
             await browser.close();
             browser = null;
@@ -1445,20 +1469,28 @@ class CPEScrapingHandler {
 
             // Capturar la URL final (incluye token de sesiÃ³n)
             const targetUrl = page.url();
-            logger.info('URL de destino capturada (despuÃ©s de redirecciÃ³n)', { targetUrl });
+            logger.info('URL de destino capturada (después de redirección)', { targetUrl });
 
-            // PASO 3: Obtener todas las cookies de la sesiÃ³n
+            // PASO 3: Obtener todas las cookies de la sesión
             const cookies = await context.cookies();
-            logger.info(`Obtenidas ${cookies.length} cookies de la sesiÃ³n`);
+            logger.info(`Obtenidas ${cookies.length} cookies de la sesión`);
 
-            // Crear ID de sesiÃ³n
+            // Crear ID de sesión
             const sessionId = `emision_${rucConsultante}_${Date.now()}`;
+
+            // Guardar cookies y datos en el proxySessions
+            this.proxySessions.set(sessionId, {
+                cookies,
+                clienteRuc: cliente.ruc,
+                clienteRazon: cliente.razonSocial,
+                createdAt: Date.now()
+            });
 
             // Cerrar browser de Playwright - ya no lo necesitamos
             await browser.close();
             browser = null;
 
-            logger.info('SesiÃ³n de login capturada correctamente', {
+            logger.info('Sesión de login capturada correctamente', {
                 sessionId,
                 rucConsultante,
                 targetUrl,
@@ -1468,7 +1500,7 @@ class CPEScrapingHandler {
             return {
                 success: true,
                 sessionId,
-                targetUrl, // URL con token de sesiÃ³n para navegarla en BrowserView
+                targetUrl, // URL con token de sesión para navegarla en BrowserView
                 cookies, // Cookies para inyectar en Electron
                 clienteRuc: cliente.ruc,
                 clienteRazon: cliente.razonSocial
