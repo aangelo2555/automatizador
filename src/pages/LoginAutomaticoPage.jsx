@@ -2,14 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Space, Typography, message, Tag, Input, Tooltip, Select } from 'antd';
 import {
     LoginOutlined,
-    PlayCircleOutlined,
-    StopOutlined,
     ReloadOutlined,
-    SearchOutlined,
-    CheckCircleOutlined,
-    LoadingOutlined,
-    CloseCircleOutlined,
-    ClockCircleOutlined
+    CopyOutlined,
+    GlobalOutlined,
+    InfoCircleOutlined,
+    DragOutlined
 } from '@ant-design/icons';
 import { getCurrentPlanInfo } from '../config/plans';
 import './LoginAutomaticoPage.css';
@@ -20,10 +17,7 @@ const { Search } = Input;
 const LoginAutomaticoPage = () => {
     const [clients, setClients] = useState([]);
     const [filteredClients, setFilteredClients] = useState([]);
-    const [selectedClients, setSelectedClients] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [hasActiveSessions, setHasActiveSessions] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [selectedPortal, setSelectedPortal] = useState(1);
     const [config, setConfig] = useState(null);
@@ -32,15 +26,6 @@ const LoginAutomaticoPage = () => {
     useEffect(() => {
         loadClients();
         initializeApp();
-        setupEventListeners();
-
-        return () => {
-            if (window.electronAPI) {
-                window.electronAPI.removeAllListeners('login-started');
-                window.electronAPI.removeAllListeners('login-completed');
-                window.electronAPI.removeAllListeners('login-process-completed');
-            }
-        };
     }, []);
 
     const initializeApp = async () => {
@@ -54,38 +39,13 @@ const LoginAutomaticoPage = () => {
         }
     };
 
-    const setupEventListeners = () => {
-        if (!window.electronAPI) return;
-
-        window.electronAPI.onLoginStarted((event, data) => {
-            updateClientStatus(data.ruc, 'processing');
-        });
-
-        window.electronAPI.onLoginCompleted((event, result) => {
-            if (result.success) {
-                updateClientStatus(result.ruc, 'success');
-                setHasActiveSessions(true);
-            } else {
-                updateClientStatus(result.ruc, 'error');
-            }
-        });
-
-        window.electronAPI.onLoginProcessCompleted(() => {
-            setIsProcessing(false);
-            checkActiveSessions();
-            message.success('Proceso completado - Todas las sesiones procesadas');
-        });
-    };
-
     const loadClients = async () => {
         setLoading(true);
         try {
             const result = await window.electronAPI.invoke('clients:get-all');
 
             if (result.success) {
-                // Cargar TODOS los clientes sin filtrar por tipo
-                const todosLosClientes = result.clients
-                    .map(client => ({ ...client, status: 'pending' }));
+                const todosLosClientes = result.clients.map(client => ({ ...client, status: 'pending' }));
                 setClients(todosLosClientes);
                 setFilteredClients(todosLosClientes);
             } else {
@@ -114,95 +74,13 @@ const LoginAutomaticoPage = () => {
         setFilteredClients(filtered);
     };
 
-    const startLogins = async () => {
-        if (selectedClients.length === 0) {
-            message.warning('Seleccione al menos un cliente');
-            return;
-        }
-
-        const clientsToProcess = clients.filter(client => selectedClients.includes(client.ruc));
-
-        try {
-            setIsProcessing(true);
-            setClients(prev => prev.map(client => ({
-                ...client,
-                status: selectedClients.includes(client.ruc) ? 'pending' : client.status
-            })));
-
-            message.info(`Iniciando proceso para ${clientsToProcess.length} clientes`);
-
-            const result = await window.electronAPI.startLogins({
-                clients: clientsToProcess,
-                portalId: selectedPortal,
-                options: {}
-            });
-
-            if (!result.success) throw new Error(result.error);
-        } catch (error) {
-            setIsProcessing(false);
-            message.error('Error al iniciar: ' + error.message);
-        }
-    };
-
-    const stopAllSessions = async () => {
-        try {
-            const stopResult = await window.electronAPI.stopAllSessions();
-
-            if (stopResult.success) {
-                setIsProcessing(false);
-                setHasActiveSessions(false);
-                message.success(stopResult.message);
-                setClients(prev => prev.map(client => ({ ...client, status: 'pending' })));
-            }
-        } catch (error) {
-            message.error('Error al cerrar sesiones: ' + error.message);
-        }
-    };
-
-    const checkActiveSessions = async () => {
-        try {
-            const result = await window.electronAPI.getActiveSessions();
-            if (result.success) {
-                setHasActiveSessions(result.sessions && result.sessions.length > 0);
-            }
-        } catch (error) {
-            console.error('Error al verificar sesiones:', error);
-        }
-    };
-
-    const updateClientStatus = (ruc, status) => {
-        setClients(prev => prev.map(client =>
-            client.ruc === ruc ? { ...client, status } : client
-        ));
-        setFilteredClients(prev => prev.map(client =>
-            client.ruc === ruc ? { ...client, status } : client
-        ));
-    };
-
-    const getStatusTag = (status) => {
-        const statusConfig = {
-            pending: { icon: <ClockCircleOutlined />, text: 'Pendiente', color: 'default' },
-            processing: { icon: <LoadingOutlined spin />, text: 'Procesando', color: 'processing' },
-            success: { icon: <CheckCircleOutlined />, text: 'Exitoso', color: 'success' },
-            error: { icon: <CloseCircleOutlined />, text: 'Error', color: 'error' }
-        };
-
-        const config = statusConfig[status] || statusConfig.pending;
-        return (
-            <Tag icon={config.icon} color={config.color}>
-                {config.text}
-            </Tag>
-        );
-    };
-
-    // Mapeo de IDs a nombres de portales (hardcodeado)
+    // Mapeo de IDs a nombres de portales
     const portalNames = {
-        1: 'Mis declaraciones y pagos',
-        2: 'Ventana Principal',
-        3: 'Buzón Electrónico'
+        1: 'Mis declaraciones y pagos (SOL)',
+        2: 'Ventana Principal (SOL Portal)',
+        3: 'Buzón Electrónico (SUNAT)'
     };
 
-    // Siempre usar nombres hardcodeados, filtrar portal 4 explícitamente
     const portales = config && config.portales
         ? Object.keys(config.portales)
             .filter(id => parseInt(id) !== 4) // Excluir portal 4
@@ -214,6 +92,19 @@ const LoginAutomaticoPage = () => {
             value: parseInt(id),
             label
         }));
+
+    const copyToClipboard = (text, label) => {
+        navigator.clipboard.writeText(text);
+        message.success(`¡Script de login para ${label} copiado al portapapeles!`);
+    };
+
+    const getBookmarkletCode = (record) => {
+        const escapedRuc = record.ruc.replace(/'/g, "\\'");
+        const escapedUser = record.usuario.replace(/'/g, "\\'");
+        const escapedPass = (record.clave || '').replace(/'/g, "\\'");
+        
+        return `javascript:(function(){const d=document;const triggerInput=(el,val)=>{if(!el)return;el.value=val;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));};const btnRuc=d.getElementById('btnPorRuc')||d.querySelector('button[id=\"btnPorRuc\"]')||d.querySelector('.btn-ruc');if(btnRuc)btnRuc.click();setTimeout(function(){const r=d.getElementById('txtRuc')||d.querySelector('input[name=\"numRuc\"]')||d.querySelector('#txtRuc');const u=d.getElementById('txtUsuario')||d.querySelector('input[name=\"codUsuario\"]')||d.querySelector('#txtUsuario');const c=d.getElementById('txtClave')||d.querySelector('input[name=\"codClave\"]')||d.querySelector('#txtClave');triggerInput(r,'${escapedRuc}');triggerInput(u,'${escapedUser}');triggerInput(c,'${escapedPass}');setTimeout(function(){const b=d.getElementById('btnAceptar')||d.querySelector('button[type=\"submit\"]')||d.querySelector('#btnAceptar')||d.querySelector('.btn-primary');if(b)b.click();},150);},250);})()`;
+    };
 
     const columns = [
         {
@@ -228,28 +119,74 @@ const LoginAutomaticoPage = () => {
             dataIndex: 'empresa',
             key: 'empresa',
             ellipsis: true,
+            render: (text) => <Text strong>{text}</Text>
         },
         {
             title: 'Usuario SOL',
             dataIndex: 'usuario',
             key: 'usuario',
-            width: 150,
+            width: 130,
         },
         {
-            title: 'Estado',
-            key: 'status',
-            width: 140,
-            render: (_, record) => getStatusTag(record.status),
-        },
-    ];
+            title: 'Login Mágico en Navegador (Cloud-Native)',
+            key: 'actions',
+            width: 480,
+            render: (_, record) => {
+                const portalUrl = config && config.portales ? config.portales[selectedPortal] || 'https://declaraciones.sunat.gob.pe/' : 'https://declaraciones.sunat.gob.pe/';
+                const bookmarklet = getBookmarkletCode(record);
 
-    const rowSelection = {
-        selectedRowKeys: selectedClients,
-        onChange: (selectedRowKeys) => setSelectedClients(selectedRowKeys),
-        getCheckboxProps: () => ({
-            disabled: isProcessing,
-        }),
-    };
+                return (
+                    <Space size="middle">
+                        <Tooltip title="Arrastra este botón azul a tu barra de marcadores del navegador (Chrome/Edge)">
+                            <a
+                                href={bookmarklet}
+                                className="bookmarklet-btn"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    message.warning('¡No hagas clic! Arrastra este botón a tu barra de marcadores/favoritos (Ctrl+Shift+B)');
+                                }}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '6px 14px',
+                                    background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+                                    color: 'white',
+                                    borderRadius: '8px',
+                                    fontWeight: '600',
+                                    fontSize: '13px',
+                                    border: '1px solid #1e40af',
+                                    boxShadow: '0 2px 4px rgba(30, 64, 175, 0.2)',
+                                    cursor: 'grab',
+                                    userSelect: 'none',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <DragOutlined /> Login {record.empresa.substring(0, 10)}...
+                            </a>
+                        </Tooltip>
+
+                        <Button
+                            type="dashed"
+                            icon={<CopyOutlined />}
+                            onClick={() => copyToClipboard(bookmarklet, record.empresa)}
+                        >
+                            Copiar Script
+                        </Button>
+
+                        <Button
+                            type="primary"
+                            ghost
+                            icon={<GlobalOutlined />}
+                            onClick={() => window.open(portalUrl, '_blank')}
+                        >
+                            Abrir SUNAT
+                        </Button>
+                    </Space>
+                );
+            }
+        }
+    ];
 
     return (
         <div className="login-automatico-page">
@@ -261,7 +198,7 @@ const LoginAutomaticoPage = () => {
                             <LoginOutlined /> Login Automático
                         </Title>
                         <Paragraph type="secondary" style={{ margin: '8px 0 0 0' }}>
-                            Gestiona tus clientes y operaciones SUNAT de forma automatizada
+                            Acceso y auto-relleno inmediato en portales de SUNAT optimizado para entorno web
                         </Paragraph>
                     </div>
                     <div className="header-right">
@@ -277,11 +214,38 @@ const LoginAutomaticoPage = () => {
                 </div>
             </Card>
 
+            {/* Guía de Uso del Bookmarklet */}
+            <Card bordered={false} style={{ marginTop: 16, borderLeft: '5px solid #2563eb' }}>
+                <Title level={4} style={{ margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <InfoCircleOutlined style={{ color: '#2563eb' }} /> Guía de Login Rápido (Bookmarklet Cloud-Native)
+                </Title>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <Text strong style={{ display: 'block', marginBottom: '4px' }}>1. Mostrar Marcadores</Text>
+                        <Paragraph style={{ margin: 0, fontSize: '13px' }} type="secondary">
+                            Asegúrate de ver tu barra de marcadores en Chrome/Edge. Actívala presionando las teclas <Text code>Ctrl + Shift + B</Text>.
+                        </Paragraph>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <Text strong style={{ display: 'block', marginBottom: '4px' }}>2. Arrastrar el Botón</Text>
+                        <Paragraph style={{ margin: 0, fontSize: '13px' }} type="secondary">
+                            <strong>Arrastra con el ratón</strong> el botón azul <Text strong>"Login [Empresa]"</Text> de tu cliente y suéltalo en la barra de marcadores.
+                        </Paragraph>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <Text strong style={{ display: 'block', marginBottom: '4px' }}>3. Abrir y Hacer Clic</Text>
+                        <Paragraph style={{ margin: 0, fontSize: '13px' }} type="secondary">
+                            Haz clic en <Text strong>"Abrir SUNAT"</Text>. Una vez cargada la página de SUNAT, haz clic en el marcador guardado para auto-rellenar y entrar al instante.
+                        </Paragraph>
+                    </div>
+                </div>
+            </Card>
+
             {/* Portal Selection Card */}
             <Card bordered={false} style={{ marginTop: 16 }}>
-                <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                    <div>
-                        <Text strong>Portal SUNAT</Text>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '24px' }}>
+                    <div style={{ flex: 1 }}>
+                        <Text strong>Portal SUNAT Destino</Text>
                         <Select
                             value={selectedPortal}
                             onChange={setSelectedPortal}
@@ -289,7 +253,6 @@ const LoginAutomaticoPage = () => {
                             loading={!config || portales.length === 0}
                             style={{ width: '100%', marginTop: 8 }}
                             size="large"
-                            disabled={isProcessing}
                             notFoundContent="No hay portales configurados"
                             getPopupContainer={triggerNode => triggerNode.parentNode}
                         >
@@ -300,53 +263,27 @@ const LoginAutomaticoPage = () => {
                             ))}
                         </Select>
                     </div>
-                </Space>
-            </Card>
-
-            {/* Actions Card */}
-            <Card bordered={false} style={{ marginTop: 16 }}>
-                <Space wrap size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
-                    <Space wrap>
-                        <Button
-                            type="primary"
-                            icon={<PlayCircleOutlined />}
-                            onClick={startLogins}
-                            size="large"
-                            disabled={selectedClients.length === 0 || isProcessing}
-                            loading={isProcessing}
-                        >
-                            Iniciar Sesiones ({selectedClients.length})
-                        </Button>
-
-                        <Button
-                            danger
-                            icon={<StopOutlined />}
-                            onClick={stopAllSessions}
-                            size="large"
-                            disabled={!hasActiveSessions}
-                        >
-                            Cerrar Sesiones
-                        </Button>
-
-                        <Button
-                            icon={<ReloadOutlined />}
-                            onClick={loadClients}
-                            loading={loading}
-                            size="large"
-                        >
-                            Recargar
-                        </Button>
-                    </Space>
-
-                    <Search
-                        placeholder="Buscar por RUC, empresa o usuario..."
-                        allowClear
-                        onSearch={handleSearch}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        style={{ width: 350 }}
-                        size="large"
-                    />
-                </Space>
+                    <div>
+                        <Space size="middle">
+                            <Search
+                                placeholder="Buscar por RUC, empresa o usuario..."
+                                allowClear
+                                onSearch={handleSearch}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                style={{ width: 350 }}
+                                size="large"
+                            />
+                            <Button
+                                icon={<ReloadOutlined />}
+                                onClick={loadClients}
+                                loading={loading}
+                                size="large"
+                            >
+                                Recargar
+                            </Button>
+                        </Space>
+                    </div>
+                </div>
             </Card>
 
             {/* Table Card */}
@@ -356,7 +293,6 @@ const LoginAutomaticoPage = () => {
                     dataSource={filteredClients}
                     rowKey="ruc"
                     loading={loading}
-                    rowSelection={rowSelection}
                     pagination={{
                         pageSize: 10,
                         showSizeChanger: true,
