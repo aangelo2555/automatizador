@@ -178,10 +178,27 @@ const electronAPIBridge = {
   },
 
   abrirArchivoSire: async (nombreArchivo) => {
-    return apiFetch('/sire/archivos/abrir', {
-      method: 'POST',
-      body: JSON.stringify({ nombreArchivo })
-    });
+    try {
+      const token = getToken();
+      const downloadUrl = `${API_BASE}/sire/archivos/descargar?nombre=${encodeURIComponent(nombreArchivo)}&token=${encodeURIComponent(token)}`;
+      
+      // Crear un elemento anchor invisible para forzar la descarga en el navegador
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      
+      // Obtener el nombre del archivo final
+      const fileName = nombreArchivo.split(/[\\/]/).pop();
+      link.setAttribute('download', fileName);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('[API Bridge] Error en abrirArchivoSire:', error);
+      return { success: false, error: error.message || 'Error al iniciar la descarga del archivo' };
+    }
   },
 
   eliminarArchivoSire: async (nombreArchivo) => {

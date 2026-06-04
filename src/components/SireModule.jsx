@@ -156,23 +156,19 @@ const SireModule = () => {
 
   const abrirExcelSire = async () => {
     try {
-      const result = await window.electronAPI.abrirExcelSire();
-      if (result.success) {
-        Swal.fire({
-          icon: 'success',
-          title: 'Excel SIRE abierto',
-          text: 'El archivo se abrió correctamente',
-          timer: 2000,
-          showConfirmButton: false
-        });
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error al abrir Excel',
-          text: result.error,
-          confirmButtonColor: '#667eea'
-        });
+      if (archivosDescargados && archivosDescargados.length > 0) {
+        const archivosParaRuc = archivosDescargados.filter(a => !selectedRuc || String(a.ruc) === String(selectedRuc));
+        const archivoAAbrir = archivosParaRuc.length > 0 ? archivosParaRuc[0] : archivosDescargados[0];
+        abrirArchivoDescargado(archivoAAbrir.nombre);
+        return;
       }
+      
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sin archivos',
+        text: 'No hay archivos descargados recientemente para abrir.',
+        confirmButtonColor: '#667eea'
+      });
     } catch (error) {
       Swal.fire({
         icon: 'error',

@@ -125,4 +125,30 @@ router.post('/ajustes/:action', async (req, res) => {
   }
 });
 
+// GET /api/sire/archivos/descargar - Download a specific SIRE file
+router.get('/archivos/descargar', async (req, res) => {
+  try {
+    const manager = getSireFileManager();
+    if (!manager) return res.status(503).json({ success: false, error: 'Módulo SIRE no disponible' });
+
+    const nombre = req.query.nombre;
+    if (!nombre) {
+      return res.status(400).json({ success: false, error: 'Falta el nombre del archivo' });
+    }
+
+    const path = require('path');
+    const fs = require('fs');
+    const filePath = path.join(manager.outputDir, nombre);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: 'Archivo no encontrado' });
+    }
+
+    res.download(filePath, path.basename(filePath));
+  } catch (error) {
+    logger.error('Error downloading SIRE file:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

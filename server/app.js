@@ -27,7 +27,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'automatizador-sunat-secret-key-202
 // Auth middleware
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  let token = authHeader && authHeader.split(' ')[1];
+  
+  // Soporte para descargas/links directos con token en query string
+  if (!token && req.query && req.query.token) {
+    token = req.query.token;
+  }
   
   if (!token) {
     return res.status(401).json({ success: false, error: 'Acceso denegado. No hay token.' });
