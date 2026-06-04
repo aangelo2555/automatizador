@@ -223,14 +223,39 @@ router.all('/sunat-proxy/:sessionId/:targetDomain/*', async (req, res) => {
     const axios = require('axios');
     const querystring = require('querystring');
     
-    // Copy client headers
-    const headers = { ...req.headers };
-    delete headers.host;
-    delete headers.connection;
-    delete headers.referer;
+    // Copy only standard safe headers to prevent triggering SUNAT's WAF (F5 BIG-IP)
+    const headers = {};
+    const safeHeaders = ['user-agent', 'accept', 'accept-language', 'content-type', 'cache-control', 'pragma'];
+    safeHeaders.forEach(h => {
+      if (req.headers[h]) {
+        headers[h] = req.headers[h];
+      }
+    });
+
     headers['host'] = targetDomain;
     headers['cookie'] = cookieHeader;
     headers['accept-encoding'] = 'identity'; // request raw body
+
+    // Rewrite Origin header if present
+    if (req.headers['origin']) {
+      headers['origin'] = `https://${targetDomain}`;
+    }
+
+    // Rewrite Referer header to make it look like a direct SUNAT request
+    if (req.headers['referer']) {
+      let ref = req.headers['referer'];
+      const proxyPrefixPattern = new RegExp(`https?://[^/]+/api/cpe/sunat-proxy/[^/]+/([^/]+)`);
+      const match = ref.match(proxyPrefixPattern);
+      if (match) {
+        const refDomain = match[1];
+        ref = ref.replace(proxyPrefixPattern, `https://${refDomain}`);
+      } else {
+        ref = `https://${targetDomain}/`;
+      }
+      headers['referer'] = ref;
+    } else {
+      headers['referer'] = `https://${targetDomain}/`;
+    }
 
     let requestData = undefined;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
