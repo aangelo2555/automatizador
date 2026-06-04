@@ -4,6 +4,12 @@
  * Exposes all IPC handlers as REST API endpoints
  */
 
+// Prefer IPv4 for DNS resolution globally (prevents IPv6 connection timeouts for SMTP/Gmail in containers)
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 require('dotenv').config();
 
 const express = require('express');

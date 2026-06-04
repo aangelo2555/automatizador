@@ -48,11 +48,19 @@ class EmailService {
     configurar(user, pass) {
         try {
             this.transporter = nodemailer.createTransport({
-                service: 'gmail',
+                host: 'smtp.gmail.com',
+                port: 465,
+                secure: true,
                 auth: {
                     user: user,
                     pass: pass
-                }
+                },
+                tls: {
+                    rejectUnauthorized: false
+                },
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 15000
             });
 
             this.emailUser = user;
