@@ -114,6 +114,11 @@ class SireFileManager {
         return { success: false, error: 'Archivo no encontrado' };
       }
 
+      if (process.env.NODE_ENV === 'production' || process.platform !== 'win32') {
+        logger.info('Entorno web/producción detectado. Omitiendo apertura de archivo local:', { nombreArchivo });
+        return { success: true, message: 'Omitido en nube' };
+      }
+
       const { exec } = require('child_process');
       const comando = process.platform === 'win32'
         ? `start "" "${filePath}"`

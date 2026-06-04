@@ -11,7 +11,7 @@
     "dev:server": "nodemon server/app.js",
     "build": "vite build",
     "start": "node server/app.js",
-    "postinstall": "npx playwright install chromium"
+    "postinstall": "node server/postinstall.js"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

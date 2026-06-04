@@ -324,13 +324,19 @@ class SunatBot {
     }
   }
 
-  /**
-   * Rellena el formulario de login
-   * @param {Page} page - PÃ¡gina de Playwright
-   * @param {Object} cliente - Datos del cliente
-   * @param {number} timeout - Timeout en ms
-   */
   async fillLoginForm(page, cliente, timeout) {
+    // Intentar seleccionar la pestaña "RUC" por si acaso la página de SUNAT carga por defecto otra opción (como DNI)
+    try {
+      const btnPorRuc = await page.$('#btnPorRuc');
+      if (btnPorRuc) {
+        logger.info('Pestaña RUC detectada, haciendo click para activarla');
+        await btnPorRuc.click({ timeout: 2000 });
+        await this.sleep(500);
+      }
+    } catch (e) {
+      logger.warn('No se pudo hacer click en pestaña RUC (puede estar seleccionada o no disponible):', e.message);
+    }
+
     // Esperar campo RUC
     await page.waitForSelector('#txtRuc', { timeout });
 
@@ -343,7 +349,7 @@ class SunatBot {
     await page.fill('#txtUsuario', '');
     await page.fill('#txtUsuario', cliente.usuario);
 
-    // Esperar y rellenar contraseÃ±a
+    // Esperar y rellenar contraseña
     await page.waitForSelector('#txtContrasena', { timeout });
     await page.fill('#txtContrasena', '');
     await page.fill('#txtContrasena', cliente.clave);

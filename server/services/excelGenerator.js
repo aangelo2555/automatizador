@@ -239,22 +239,26 @@ class ExcelGenerator {
    */
   async abrirExcel(filepath) {
     try {
+      if (process.env.NODE_ENV === 'production' || process.platform !== 'win32') {
+        logger.info('Entorno web/producción detectado. Omitiendo apertura de Excel local.', { filepath });
+        return { success: true, info: 'Omitido en nube' };
+      }
+
       const { exec } = require('child_process');
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         exec(`start "" "${filepath}"`, (error) => {
           if (error) {
-            reject(error);
-          } else {
-            resolve({ success: true });
+            logger.warn('No se pudo abrir el Excel localmente:', error.message);
           }
+          resolve({ success: true });
         });
       });
 
     } catch (error) {
       logger.error('Error al abrir Excel', { error: error.message });
       return {
-        success: false,
+        success: true,
         error: error.message
       };
     }
