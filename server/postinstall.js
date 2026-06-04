@@ -1,6 +1,12 @@
 const { execSync } = require('child_process');
+const fs = require('fs');
 
 console.log('Running cross-platform Playwright installation...');
+
+if (fs.existsSync('/ms-playwright') || process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === '1') {
+  console.log('Playwright browsers already pre-installed or download skipped. Skipping installation.');
+  process.exit(0);
+}
 
 try {
   if (process.platform === 'linux') {
