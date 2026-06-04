@@ -65,9 +65,13 @@ class SireHandler {
       // Ejecutar proceso
       const resultado = await this.orchestrator.ejecutarDescarga(params);
 
-      if (resultado.success && resultado.excelPath) {
-        // Abrir Excel automáticamente
-        await this.orchestrator.abrirExcelGenerado(resultado.excelPath);
+      if (resultado.success && resultado.excelPath && process.platform === 'win32' && process.env.NODE_ENV !== 'production') {
+        // Abrir Excel automáticamente (solo entornos Windows locales de desarrollo)
+        try {
+          await this.orchestrator.abrirExcelGenerado(resultado.excelPath);
+        } catch (openError) {
+          logger.warn('No se pudo abrir el Excel localmente', { error: openError.message });
+        }
       }
 
       return resultado;

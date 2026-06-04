@@ -138,7 +138,8 @@ router.get('/archivos/descargar', async (req, res) => {
 
     const path = require('path');
     const fs = require('fs');
-    const filePath = path.join(manager.outputDir, nombre);
+    const normalizedNombre = nombre.replace(/\\/g, path.sep).replace(/\//g, path.sep);
+    const filePath = path.join(manager.outputDir, normalizedNombre);
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, error: 'Archivo no encontrado' });

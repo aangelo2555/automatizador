@@ -66,7 +66,7 @@ class SireFileManager {
 
         // Obtener nombre relativo (para abrir/eliminar)
         // Ejemplo: "20606080134\RCE_...xlsx"
-        const relativePath = path.relative(this.outputDir, filePath);
+        const relativePath = path.relative(this.outputDir, filePath).replace(/\\/g, '/');
 
         // Extraer informaciÃ³n del nombre del archivo
         // Formato: RCE_20123456789_202401_timestamp.xlsx
@@ -111,7 +111,8 @@ class SireFileManager {
    */
   async abrirArchivo(nombreArchivo) {
     try {
-      const filePath = path.join(this.outputDir, nombreArchivo);
+      const normalizedNombre = nombreArchivo.replace(/\\/g, path.sep).replace(/\//g, path.sep);
+      const filePath = path.join(this.outputDir, normalizedNombre);
 
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'Archivo no encontrado' };
@@ -150,7 +151,8 @@ class SireFileManager {
    */
   async eliminarArchivo(nombreArchivo) {
     try {
-      const filePath = path.join(this.outputDir, nombreArchivo);
+      const normalizedNombre = nombreArchivo.replace(/\\/g, path.sep).replace(/\//g, path.sep);
+      const filePath = path.join(this.outputDir, normalizedNombre);
 
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'Archivo no encontrado' };
