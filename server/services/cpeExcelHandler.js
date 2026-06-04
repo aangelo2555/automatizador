@@ -7,8 +7,12 @@ const logger = require('./logger');
  * Handler para cargar y leer archivos Excel de CPE desde carpeta output
  */
 class CPEExcelHandler {
-    constructor() {
-        this.outputPath = path.join(process.cwd(), 'output');
+    get outputPath() {
+        const userStorageManager = require('./userStorageManager');
+        if (userStorageManager && userStorageManager.isInitialized()) {
+            return userStorageManager.getUserFolderPath('sire-files');
+        }
+        return path.join(process.cwd(), 'output');
     }
 
     /**

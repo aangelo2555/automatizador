@@ -12,9 +12,16 @@ const axios = require('axios');
 
 class AjustesPosterioresHandler {
     constructor() {
-        this.outputPath = path.join(process.cwd(), 'output');
         this.dataPath = path.join(process.cwd(), 'server', 'data');
         this.apiSirePath = path.join(this.dataPath, 'API_SIRE.xlsm');
+    }
+
+    get outputPath() {
+        const userStorageManager = require('./userStorageManager');
+        if (userStorageManager && userStorageManager.isInitialized()) {
+            return userStorageManager.getUserFolderPath('sire-files');
+        }
+        return path.join(process.cwd(), 'output');
     }
 
     /**

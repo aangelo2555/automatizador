@@ -10,8 +10,15 @@ const ajustesExcelCreator = require('./ajustesExcelCreator');
 class SireAjustesHandler {
   constructor() {
     this.ajustesWindow = null;
-    this.outputPath = path.join(process.cwd(), 'output');
     this.dataPath = path.join(process.cwd(), 'server', 'data');
+  }
+
+  get outputPath() {
+    const userStorageManager = require('./userStorageManager');
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      return userStorageManager.getUserFolderPath('sire-files');
+    }
+    return path.join(process.cwd(), 'output');
   }
 
   /**
