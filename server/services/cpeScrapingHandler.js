@@ -4,7 +4,7 @@ const fs = require('fs');
 const logger = require('./logger');
 const excelReader = require('./excelReader');
 // [WEB] Electron removed
-const shell = { openPath: (p) => Promise.resolve() };
+const shell = { openPath: (p) => Promise.resolve(), showItemInFolder: (p) => Promise.resolve() };
 const axios = require('axios');
 
 /**

@@ -1337,9 +1337,13 @@ function ConsultaFacturaModule() {
       });
 
       if (result.success) {
+        // Trigger browser download by requesting file from backend
+        const downloadUrl = `${window.location.origin}/api/cpe/download?path=${encodeURIComponent(result.path)}&token=${encodeURIComponent(localStorage.getItem('token') || '')}`;
+        window.open(downloadUrl, '_blank');
+
         Swal.fire({
           title: 'Descarga exitosa',
-          text: `Archivo guardado en: ${result.path}`,
+          text: `El archivo se ha descargado a tu navegador.`,
           icon: 'success',
           timer: 3000
         });

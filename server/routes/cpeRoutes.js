@@ -98,4 +98,36 @@ router.post('/consulta-factura', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// GET /api/cpe/download - Download a specific CPE file from server filesystem
+router.get('/download', async (req, res) => {
+  try {
+    const { path: filePath } = req.query;
+    if (!filePath) {
+      return res.status(400).json({ success: false, error: 'Se requiere la ruta del archivo' });
+    }
+    
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Resolve absolute path
+    const resolvedPath = path.resolve(filePath);
+    
+    // Safety check: ensure file exists
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({ success: false, error: 'Archivo no encontrado' });
+    }
+    
+    // Safety check: ensure it is a file and not a directory
+    const stats = fs.statSync(resolvedPath);
+    if (!stats.isFile()) {
+      return res.status(400).json({ success: false, error: 'La ruta especificada no es un archivo' });
+    }
+
+    res.download(resolvedPath, path.basename(resolvedPath));
+  } catch (error) {
+    logger.error('Error al descargar archivo CPE:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
