@@ -26,6 +26,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Servir capturas de error estáticamente para depuración remota
+app.use('/screenshots', express.static(path.join(process.cwd(), 'screenshots')));
+
 // ── JWT Auth Setup ──
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'automatizador-sunat-secret-key-2026';
@@ -80,7 +83,7 @@ app.set('JWT_SECRET', JWT_SECRET);
 app.set('authMiddleware', authMiddleware);
 
 // ── Ensure data directories exist ──
-const dirs = ['server/data', 'output', 'descargas_cpe', 'descargas_buzon', 'sire', 'temp', 'uploads', 'logs'];
+const dirs = ['server/data', 'output', 'descargas_cpe', 'descargas_buzon', 'sire', 'temp', 'uploads', 'logs', 'screenshots'];
 dirs.forEach(dir => {
   const fullPath = path.join(process.cwd(), dir);
   if (!fs.existsSync(fullPath)) {
