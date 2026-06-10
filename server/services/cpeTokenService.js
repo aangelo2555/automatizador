@@ -66,6 +66,10 @@ async function obtenerToken(ruc, credenciales) {
  * Guarda una captura de pantalla de error en la carpeta dist/screenshots
  * para poder visualizarla vía web desde /screenshots/name.png
  */
+/**
+ * Guarda una captura de pantalla de error en la carpeta dist/screenshots
+ * para poder visualizarla vía web desde /screenshots/name.png
+ */
 async function guardarScreenshotError(page, name) {
   if (!page) return;
   try {
@@ -81,6 +85,88 @@ async function guardarScreenshotError(page, name) {
     logger.info(`[CPE Token] 📸 Captura de pantalla de error guardada en: /screenshots/${name}`);
   } catch (err) {
     logger.error(`[CPE Token] No se pudo guardar captura de pantalla de error: ${err.message}`);
+  }
+}
+
+/**
+ * Cierra las alertas o popups emergentes típicos de SUNAT (buzón, contacto, etc.)
+ */
+async function bypassAlerts(p) {
+  try {
+    const selectors = [
+      'button:has-text("Continuar")',
+      'button:has-text("Aceptar")',
+      'button:has-text("Omitir")',
+      'input[type="button"][value="Continuar"]',
+      'input[type="button"][value="Aceptar"]',
+      '#btnContinuar',
+      '#btnAceptar',
+      'a:has-text("Continuar")',
+      'a:has-text("Aceptar")',
+      '.modal-footer button'
+    ];
+    for (const selector of selectors) {
+      try {
+        const btn = p.locator(selector).first();
+        if (await btn.isVisible()) {
+          logger.info(`[CPE Token] Cerrando emergente SUNAT con selector: ${selector}`);
+          await btn.click();
+          await p.waitForTimeout(2000);
+        }
+      } catch (err) {}
+    }
+  } catch (err) {
+    logger.debug(`[CPE Token] Error cerrando alertas: ${err.message}`);
+  }
+}
+
+/**
+ * Intenta extraer el JWT directamente del sessionStorage o localStorage de la página
+ */
+async function extraerJWTDesdeStorage(p) {
+  try {
+    return await p.evaluate(() => {
+      const isJWT = (str) => {
+        if (typeof str !== 'string') return false;
+        if (!str.startsWith('ey') || str.length < 100) return false;
+        const parts = str.split('.');
+        return parts.length === 3;
+      };
+
+      // 1. Buscar en sessionStorage
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        const val = sessionStorage.getItem(key);
+        if (isJWT(val)) return val;
+        try {
+          const parsed = JSON.parse(val);
+          if (parsed && typeof parsed === 'object') {
+            for (const k of Object.keys(parsed)) {
+              if (isJWT(parsed[k])) return parsed[k];
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. Buscar en localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const val = localStorage.getItem(key);
+        if (isJWT(val)) return val;
+        try {
+          const parsed = JSON.parse(val);
+          if (parsed && typeof parsed === 'object') {
+            for (const k of Object.keys(parsed)) {
+              if (isJWT(parsed[k])) return parsed[k];
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    });
+  } catch (err) {
+    logger.warn(`[CPE Token] Error al extraer JWT desde storage: ${err.message}`);
+    return null;
   }
 }
 
@@ -170,6 +256,9 @@ async function _loginYCapturarToken(ruc, credenciales) {
 
     await page.waitForTimeout(4000);
 
+    // Intentar cerrar alertas/ventanas emergentes iniciales si las hubiera
+    await bypassAlerts(page);
+
     // Verificar si sigue en la página de login o si hay errores visibles en pantalla
     const errorText = await page.evaluate(() => {
       const el = document.querySelector('.error, #errorMensaje, .alert-danger, [id*="error"]');
@@ -195,36 +284,36 @@ async function _loginYCapturarToken(ruc, credenciales) {
 
     logger.info('[CPE Token] Login SOL exitoso');
 
-    // ===== PASO 2: INTERCEPTAR TOKEN =====
+    // ===== PASO 2: CONFIGURAR INTERCEPTACIÓN DE RED =====
     let capturedToken = null;
 
-    // Escuchar requests a api-cpe.sunat.gob.pe para capturar el Bearer token
+    // Escuchar todas las requests para capturar Bearer token
     page.on('request', (request) => {
-      const url = request.url();
-      if (url.includes('api-cpe.sunat.gob.pe') || url.includes('api-seguridad.sunat.gob.pe')) {
-        const authHeader = request.headers()['authorization'];
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          const token = authHeader.substring(7);
-          if (token.length > 100) { // JWT válido suele ser largo
-            capturedToken = token;
-            logger.info(`[CPE Token] ✅ Token JWT capturado! (${token.length} chars)`);
-          }
+      const authHeader = request.headers()['authorization'];
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7).trim();
+        if (token.length > 100) {
+          capturedToken = token;
+          logger.info(`[CPE Token] ✅ Token JWT capturado de cabecera! (${token.length} chars)`);
         }
       }
     });
 
-    // Intercepta respuestas que contengan access_token
+    // Intercepta todas las respuestas JSON con access_token
     page.on('response', async (response) => {
-      const url = response.url();
-      if (url.includes('oauth2/token') && response.status() === 200) {
+      const contentType = response.headers()['content-type'] || '';
+      if (contentType.includes('application/json')) {
         try {
-          const data = await response.json();
-          if (data.access_token) {
-            capturedToken = data.access_token;
-            logger.info(`[CPE Token] ✅ Token capturado desde respuesta OAuth! (${data.access_token.length} chars)`);
+          const text = await response.text();
+          if (text.includes('access_token')) {
+            const data = JSON.parse(text);
+            if (data.access_token && data.access_token.length > 100) {
+              capturedToken = data.access_token;
+              logger.info(`[CPE Token] ✅ Token capturado de respuesta JSON! (${data.access_token.length} chars)`);
+            }
           }
         } catch (e) {
-          // Ignorar respuestas no JSON
+          // Ignorar no JSON
         }
       }
     });
@@ -235,6 +324,7 @@ async function _loginYCapturarToken(ruc, credenciales) {
     const consultaUrl = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=execute&code=11.38.1.1.1&s=ww1';
     await page.goto(consultaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForTimeout(4000);
+    await bypassAlerts(page);
 
     // Navegar al portal CPE Angular
     const cpeUrl = 'https://e-factura.sunat.gob.pe/app/contribuyentems/servicio/consultacpe/consulta/nuevaconsulta/1.0.0/';
@@ -243,11 +333,35 @@ async function _loginYCapturarToken(ruc, credenciales) {
 
     // Esperar a que la app Angular cargue y haga sus requests de inicialización
     await page.waitForTimeout(6000);
+    await bypassAlerts(page);
 
-    // Si aún no capturamos el token, esperar un poco más
+    // Tratar de extraer directamente de sessionStorage / localStorage
     if (!capturedToken) {
-      logger.info('[CPE Token] Token no capturado aún, esperando más...');
-      await page.waitForTimeout(6000);
+      capturedToken = await extraerJWTDesdeStorage(page);
+      if (capturedToken) {
+        logger.info(`[CPE Token] ✅ Token JWT obtenido de sessionStorage/localStorage!`);
+      }
+    }
+
+    // Si aún no se captura el token, forzar una consulta mock/búsqueda para disparar el endpoint
+    if (!capturedToken) {
+      logger.info('[CPE Token] Token no capturado pasivamente. Ejecutando consulta mock para forzar request...');
+      try {
+        const rucInput = page.locator('input[name="rucEmisor"], input[formcontrolname="rucEmisor"]').first();
+        if (await rucInput.isVisible()) {
+          await rucInput.fill('20607032514');
+          await page.waitForTimeout(500);
+
+          const searchBtn = page.locator('button[type="submit"], button:has-text("Buscar"), button:has-text("Consultar")').first();
+          if (await searchBtn.isVisible()) {
+            await searchBtn.click();
+            logger.info('[CPE Token] Consulta mock enviada, esperando token de red...');
+            await page.waitForTimeout(5000);
+          }
+        }
+      } catch (err) {
+        logger.warn(`[CPE Token] Error en consulta mock para forzar token: ${err.message}`);
+      }
     }
 
     // ===== PASO 4: VALIDAR Y CACHEAR =====
