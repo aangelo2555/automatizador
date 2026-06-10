@@ -80,28 +80,7 @@ class CPEScrapingHandler {
                     };
                 }
             }
-            const apiSirePath = path.join(process.cwd(), 'server', 'data', 'API_SIRE.xlsm');
-
-            if (!fs.existsSync(apiSirePath)) {
-                return { success: false, error: 'No se encontrÃ³ API_SIRE.xlsm' };
-            }
-
-            const clientes = await excelReader.readClients(apiSirePath);
-            const cliente = clientes.find(c => c.ruc === ruc);
-
-            if (!cliente) {
-                return { success: false, error: `No se encontrÃ³ RUC ${ruc} en API_SIRE.xlsm` };
-            }
-
-            return {
-                success: true,
-                data: {
-                    ruc: cliente.ruc,
-                    razonSocial: cliente.empresa,
-                    usuario_sol: cliente.usuario_sol || cliente.usuario,
-                    clave_sol: cliente.clave_sol || cliente.clave
-                }
-            };
+            return { success: false, error: `No se encontraron credenciales SOL en la base de datos para el RUC ${ruc}` };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -163,6 +142,7 @@ class CPEScrapingHandler {
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
+                    '--disable-web-security',
                     '--disable-blink-features=AutomationControlled',
                     '--disable-infobars',
                     '--start-maximized'

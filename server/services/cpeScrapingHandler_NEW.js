@@ -22,16 +22,16 @@ class CpeScrapingHandlerNew {
         };
     }
 
-    // Si no se enviaron credenciales, buscarlas automáticamente en API_SIRE.xlsm
+    // Si no se enviaron credenciales, buscarlas automáticamente en la base de datos de clientes
     let credencialesCompletas = cliente;
     if (!cliente.usuario || !cliente.clave) {
-        logger.info(`Buscando credenciales para RUC: ${cliente.ruc} en API_SIRE.xlsm...`);
+        logger.info(`Buscando credenciales para RUC: ${cliente.ruc} en la base de datos de clientes...`);
         const credResult = await this.obtenerCredenciales(cliente.ruc);
 
         if (!credResult.success) {
             return {
                 success: false,
-                error: `No se encontraron credenciales para RUC ${cliente.ruc} en API_SIRE.xlsm`
+                error: `No se encontraron credenciales para RUC ${cliente.ruc} en la base de datos de clientes`
             };
         }
 
@@ -62,6 +62,7 @@ class CpeScrapingHandlerNew {
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
+                        '--disable-web-security',
                         '--disable-blink-features=AutomationControlled',
                         '--disable-infobars',
                         '--start-maximized'

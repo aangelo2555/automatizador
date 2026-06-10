@@ -104,7 +104,7 @@ class SunatBot {
       browser = await chromium.launch({
         headless: config.PLAYWRIGHT.headless,
         slowMo: config.PLAYWRIGHT.slowMo,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--start-maximized'],
         viewport: null,
         executablePath: executablePath
       });

@@ -227,6 +227,7 @@ async function _loginYCapturarToken(ruc, credenciales) {
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
+        '--disable-web-security',
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars'
       ]

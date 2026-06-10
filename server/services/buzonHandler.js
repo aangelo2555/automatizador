@@ -158,6 +158,7 @@ class BuzonHandler {
         headless: true, // OCULTO: Solicitud del usuario
         args: [
           '--no-sandbox',
+          '--disable-web-security',
           '--disable-setuid-sandbox',
           '--disable-blink-features=AutomationControlled',
           '--disable-infobars',
