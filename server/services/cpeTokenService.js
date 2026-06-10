@@ -68,7 +68,7 @@ async function obtenerToken(ruc, credenciales) {
  */
 /**
  * Guarda una captura de pantalla de error en la carpeta dist/screenshots
- * para poder visualizarla vía web desde /screenshots/name.png
+ * y escribe metadatos (URL, HTML) en un archivo .txt para depuración.
  */
 async function guardarScreenshotError(page, name) {
   if (!page) return;
@@ -82,7 +82,21 @@ async function guardarScreenshotError(page, name) {
     }
     const screenshotPath = path.join(screenshotsDir, name);
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    logger.info(`[CPE Token] 📸 Captura de pantalla de error guardada en: /screenshots/${name}`);
+
+    const currentUrl = page.url();
+    let htmlContent = '';
+    try {
+      htmlContent = await page.content();
+    } catch (e) {
+      htmlContent = `No se pudo obtener el html: ${e.message}`;
+    }
+
+    const infoName = name.replace('.png', '_info.txt');
+    const infoPath = path.join(screenshotsDir, infoName);
+    const logInfo = `URL: ${currentUrl}\n\nHTML Content (primeros 5000 chars):\n${htmlContent.substring(0, 5000)}`;
+    fs.writeFileSync(infoPath, logInfo, 'utf-8');
+
+    logger.info(`[CPE Token] 📸 Captura guardada en: /screenshots/${name} | Info guardada en: /screenshots/${infoName}`);
   } catch (err) {
     logger.error(`[CPE Token] No se pudo guardar captura de pantalla de error: ${err.message}`);
   }
@@ -208,16 +222,23 @@ async function _loginYCapturarToken(ruc, credenciales) {
 
     page = await context.newPage();
 
-    // Anti-detección
+    // Anti-detección (seguro, sin romper navigator.plugins)
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    });
+
+    // Capturar crashes de JS en la página
+    page.on('pageerror', exception => {
+      logger.error(`[CPE Token Page JS Crash] Error: ${exception.message}`, { stack: exception.stack });
     });
 
     // Log de mensajes de la consola de la página para depuración
     page.on('console', msg => {
-      if (msg.type() === 'error' || msg.text().includes('blocked') || msg.text().includes('WAF')) {
-        logger.warn(`[CPE Token Page Console] ${msg.type()}: ${msg.text()}`);
+      const txt = msg.text();
+      if (msg.type() === 'error' || txt.includes('blocked') || txt.includes('WAF') || txt.includes('failed')) {
+        logger.warn(`[CPE Token Page Console] ${msg.type()}: ${txt}`);
+      } else {
+        logger.info(`[CPE Token Page Console] ${msg.type()}: ${txt}`);
       }
     });
 
@@ -332,7 +353,13 @@ async function _loginYCapturarToken(ruc, credenciales) {
     await page.goto(cpeUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
     // Esperar a que la app Angular cargue y haga sus requests de inicialización
-    await page.waitForTimeout(6000);
+    try {
+      logger.info('[CPE Token] Esperando que carguen los elementos de e-factura Angular...');
+      await page.waitForSelector('input[name="rucEmisor"], input[formcontrolname="rucEmisor"], p-dropdown[formcontrolname="tipoComprobanteI"]', { timeout: 15000 });
+      logger.info('[CPE Token] Elementos Angular cargados');
+    } catch (err) {
+      logger.warn(`[CPE Token] Timeout esperando carga de elementos Angular: ${err.message}`);
+    }
     await bypassAlerts(page);
 
     // Tratar de extraer directamente de sessionStorage / localStorage
