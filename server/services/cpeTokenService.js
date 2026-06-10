@@ -63,11 +63,34 @@ async function obtenerToken(ruc, credenciales) {
 }
 
 /**
+ * Guarda una captura de pantalla de error en la carpeta dist/screenshots
+ * para poder visualizarla vía web desde /screenshots/name.png
+ */
+async function guardarScreenshotError(page, name) {
+  if (!page) return;
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const distPath = path.join(process.cwd(), 'dist');
+    const screenshotsDir = path.join(distPath, 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    const screenshotPath = path.join(screenshotsDir, name);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    logger.info(`[CPE Token] 📸 Captura de pantalla de error guardada en: /screenshots/${name}`);
+  } catch (err) {
+    logger.error(`[CPE Token] No se pudo guardar captura de pantalla de error: ${err.message}`);
+  }
+}
+
+/**
  * Login SOL + interceptar JWT de la API CPE
  * @private
  */
 async function _loginYCapturarToken(ruc, credenciales) {
   let browser = null;
+  let page = null;
 
   try {
     const { usuario_sol, clave_sol } = credenciales;
@@ -90,19 +113,26 @@ async function _loginYCapturarToken(ruc, credenciales) {
     });
 
     const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       viewport: { width: 1366, height: 900 },
       extraHTTPHeaders: {
-        'Accept-Language': 'es-PE,es;q=0.9'
+        'Accept-Language': 'es-PE,es;q=0.9,en;q=0.8'
       }
     });
 
-    const page = await context.newPage();
+    page = await context.newPage();
 
     // Anti-detección
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
       Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    });
+
+    // Log de mensajes de la consola de la página para depuración
+    page.on('console', msg => {
+      if (msg.type() === 'error' || msg.text().includes('blocked') || msg.text().includes('WAF')) {
+        logger.warn(`[CPE Token Page Console] ${msg.type()}: ${msg.text()}`);
+      }
     });
 
     page.setDefaultTimeout(60000);
@@ -113,7 +143,15 @@ async function _loginYCapturarToken(ruc, credenciales) {
     logger.info('[CPE Token] Navegando al login SOL...');
 
     await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    await page.waitForSelector('#txtRuc', { timeout: 30000 });
+    
+    // Esperar y validar el selector de RUC
+    try {
+      await page.waitForSelector('#txtRuc', { timeout: 30000 });
+    } catch (selectorErr) {
+      logger.error(`[CPE Token] Timeout esperando selector #txtRuc en URL: ${page.url()}`);
+      await guardarScreenshotError(page, `error_selector_${ruc}.png`);
+      throw selectorErr;
+    }
 
     // Rellenar formulario
     await page.fill('#txtRuc', ruc);
@@ -130,7 +168,19 @@ async function _loginYCapturarToken(ruc, credenciales) {
       page.click('#btnAceptar')
     ]);
 
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(4000);
+
+    // Verificar si sigue en la página de login o si hay errores visibles en pantalla
+    const errorText = await page.evaluate(() => {
+      const el = document.querySelector('.error, #errorMensaje, .alert-danger, [id*="error"]');
+      return el ? el.innerText.trim() : null;
+    });
+
+    if (errorText) {
+      logger.error(`[CPE Token] Mensaje de error detectado en login: "${errorText}"`);
+      await guardarScreenshotError(page, `error_login_${ruc}.png`);
+      return { success: false, error: `Error en login SUNAT: ${errorText}` };
+    }
 
     // Verificar OAuth redirect
     let currentUrl = page.url();
@@ -140,13 +190,12 @@ async function _loginYCapturarToken(ruc, credenciales) {
         waitUntil: 'domcontentloaded',
         timeout: 60000
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
     }
 
     logger.info('[CPE Token] Login SOL exitoso');
 
     // ===== PASO 2: INTERCEPTAR TOKEN =====
-    // Configurar interceptor de red ANTES de navegar a e-factura
     let capturedToken = null;
 
     // Escuchar requests a api-cpe.sunat.gob.pe para capturar el Bearer token
@@ -164,7 +213,7 @@ async function _loginYCapturarToken(ruc, credenciales) {
       }
     });
 
-    // También interceptar respuestas que contengan access_token
+    // Intercepta respuestas que contengan access_token
     page.on('response', async (response) => {
       const url = response.url();
       if (url.includes('oauth2/token') && response.status() === 200) {
@@ -175,18 +224,17 @@ async function _loginYCapturarToken(ruc, credenciales) {
             logger.info(`[CPE Token] ✅ Token capturado desde respuesta OAuth! (${data.access_token.length} chars)`);
           }
         } catch (e) {
-          // No es JSON, ignorar
+          // Ignorar respuestas no JSON
         }
       }
     });
 
     // ===== PASO 3: NAVEGAR A E-FACTURA =====
-    // Primero navegar a la URL del menú de consulta para establecer sesión
     logger.info('[CPE Token] Navegando al módulo de consulta CPE...');
     
     const consultaUrl = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=execute&code=11.38.1.1.1&s=ww1';
     await page.goto(consultaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(4000);
 
     // Navegar al portal CPE Angular
     const cpeUrl = 'https://e-factura.sunat.gob.pe/app/contribuyentems/servicio/consultacpe/consulta/nuevaconsulta/1.0.0/';
@@ -194,20 +242,21 @@ async function _loginYCapturarToken(ruc, credenciales) {
     await page.goto(cpeUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
     // Esperar a que la app Angular cargue y haga sus requests de inicialización
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(6000);
 
     // Si aún no capturamos el token, esperar un poco más
     if (!capturedToken) {
       logger.info('[CPE Token] Token no capturado aún, esperando más...');
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(6000);
     }
 
     // ===== PASO 4: VALIDAR Y CACHEAR =====
     if (!capturedToken) {
       logger.error('[CPE Token] ❌ No se pudo capturar el token JWT');
+      await guardarScreenshotError(page, `error_token_not_found_${ruc}.png`);
       return {
         success: false,
-        error: 'No se pudo obtener el token de SUNAT. Verifique las credenciales SOL.'
+        error: `No se pudo obtener el token de SUNAT. Verifique las credenciales SOL. Captura guardada en /screenshots/error_token_not_found_${ruc}.png`
       };
     }
 
@@ -240,9 +289,14 @@ async function _loginYCapturarToken(ruc, credenciales) {
       error: error.message,
       stack: error.stack
     });
+
+    if (page) {
+      await guardarScreenshotError(page, `exception_${ruc}.png`);
+    }
+
     return {
       success: false,
-      error: `Error al obtener token: ${error.message}`
+      error: `Error al obtener token: ${error.message}. Captura guardada en /screenshots/exception_${ruc}.png`
     };
   } finally {
     // ===== SIEMPRE CERRAR BROWSER =====
