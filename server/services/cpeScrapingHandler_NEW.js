@@ -80,7 +80,7 @@ async consultarMasivo(sessionId, listaComprobantes, cliente) {
                 // Anti-detección
                 await page.addInitScript(() => {
                     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
                 });
 
                 page.setDefaultTimeout(60000);

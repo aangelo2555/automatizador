@@ -68,7 +68,7 @@ async function obtenerToken(ruc, credenciales) {
  */
 /**
  * Guarda una captura de pantalla de error en la carpeta dist/screenshots
- * y escribe metadatos (URL, HTML) en un archivo .txt para depuración.
+ * y escribe metadatos (URL, HTML, y los últimos logs del servidor) en archivos públicos para depuración.
  */
 async function guardarScreenshotError(page, name) {
   if (!page) return;
@@ -96,7 +96,25 @@ async function guardarScreenshotError(page, name) {
     const logInfo = `URL: ${currentUrl}\n\nHTML Content (primeros 5000 chars):\n${htmlContent.substring(0, 5000)}`;
     fs.writeFileSync(infoPath, logInfo, 'utf-8');
 
-    logger.info(`[CPE Token] 📸 Captura guardada en: /screenshots/${name} | Info guardada en: /screenshots/${infoName}`);
+    let logContent = '';
+    try {
+      const logFile = path.join(process.cwd(), 'logs', 'automatizador.log');
+      if (fs.existsSync(logFile)) {
+        const fullLogs = fs.readFileSync(logFile, 'utf-8');
+        const lines = fullLogs.split('\n');
+        logContent = lines.slice(-150).join('\n');
+      } else {
+        logContent = 'Log file not found';
+      }
+    } catch (e) {
+      logContent = `No se pudo leer log: ${e.message}`;
+    }
+
+    const logName = name.replace('.png', '_logs.txt');
+    const logPath = path.join(screenshotsDir, logName);
+    fs.writeFileSync(logPath, logContent, 'utf-8');
+
+    logger.info(`[CPE Token] 📸 Captura guardada en: /screenshots/${name} | Info: /screenshots/${infoName} | Logs: /screenshots/${logName}`);
   } catch (err) {
     logger.error(`[CPE Token] No se pudo guardar captura de pantalla de error: ${err.message}`);
   }

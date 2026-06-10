@@ -183,7 +183,7 @@ class BuzonHandler {
       // Ocultar la detecciÃ³n de automatizaciÃ³n
       await page.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
         Object.defineProperty(navigator, 'languages', { get: () => ['es-PE', 'es', 'en'] });
       });
 
@@ -287,7 +287,7 @@ class BuzonHandler {
 
             await page.addInitScript(() => {
               Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
               Object.defineProperty(navigator, 'languages', { get: () => ['es-PE', 'es', 'en'] });
             });
 
