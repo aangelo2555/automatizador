@@ -1,6 +1,6 @@
 /**
  * Client Routes - REST API for client management
- * Replaces Electron's clients:* IPC handlers
+ * Uses clientStorageService as the single source of truth (with secure encryption)
  */
 
 const express = require('express');
@@ -8,37 +8,69 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const logger = require('../services/logger');
+const clientStorage = require('../services/clientStorageService');
 
-// Simple JSON-based client storage (replaces clientStorageService with IPC)
+// Directorio de datos legacy
 const DATA_DIR = path.join(process.cwd(), 'server', 'data');
 
-function getClientsFile(userId) {
-  const userDir = path.join(DATA_DIR, 'users', String(userId));
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
-  return path.join(userDir, 'clients.json');
-}
-
-function loadClients(userId) {
-  const file = getClientsFile(userId);
+/**
+ * Migra clientes desde el archivo legacy clients.json (sin encriptar)
+ * al almacenamiento seguro clientStorage (encriptado en clients-data.json)
+ */
+function migrarClientesLegacySiExiste(userId) {
+  const legacyFile = path.join(DATA_DIR, 'users', String(userId), 'clients.json');
   try {
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (fs.existsSync(legacyFile)) {
+      logger.info(`[Client Migration] Detectado archivo legacy clients.json para usuario ${userId}. Migrando...`);
+      const legacyClients = JSON.parse(fs.readFileSync(legacyFile, 'utf8'));
+      
+      if (Array.isArray(legacyClients) && legacyClients.length > 0) {
+        // Asegurar que clientStorage está inicializado
+        clientStorage.initializeForUser(userId);
+        
+        // Obtener clientes ya guardados en la base de datos segura para evitar duplicados exactos
+        const secureClients = clientStorage.getAllClients();
+        const secureRucs = new Set(secureClients.map(c => c.ruc));
+        
+        let count = 0;
+        for (const c of legacyClients) {
+          if (!c.ruc) continue;
+          if (!secureRucs.has(c.ruc)) {
+            // Agregar al almacenamiento seguro (addClient encripta clave y clienteSecret internamente)
+            clientStorage.addClient({
+              ruc: c.ruc,
+              empresa: c.empresa || c.razonSocial || `Empresa RUC ${c.ruc}`,
+              usuario: c.usuario || '',
+              clave: c.clave || '',
+              email: c.email || '',
+              tipo: c.tipo || 'CLIENTES',
+              clienteId: c.clienteId || '',
+              clienteSecret: c.clienteSecret || ''
+            });
+            count++;
+          }
+        }
+        logger.info(`[Client Migration] Migrados exitosamente ${count} clientes a clients-data.json`);
+      }
+      
+      // Renombrar o eliminar el archivo viejo para que no vuelva a procesarse
+      const legacyBackupFile = legacyFile + '.bak';
+      fs.renameSync(legacyFile, legacyBackupFile);
+      logger.info(`[Client Migration] Archivo legacy renombrado a ${path.basename(legacyBackupFile)}`);
     }
-  } catch (e) {
-    logger.error('Error loading clients:', e);
+  } catch (err) {
+    logger.error(`[Client Migration] Error durante la migración de clientes legacy: ${err.message}`, err);
   }
-  return [];
-}
-
-function saveClients(userId, clients) {
-  const file = getClientsFile(userId);
-  fs.writeFileSync(file, JSON.stringify(clients, null, 2), 'utf8');
 }
 
 // GET /api/clients - Get all clients
 router.get('/', (req, res) => {
   try {
-    const clients = loadClients(req.user.id);
+    // 1. Ejecutar migración legacy si existe el archivo viejo
+    migrarClientesLegacySiExiste(req.user.id);
+
+    // 2. Cargar desde el storage seguro
+    const clients = clientStorage.getAllClients();
     res.json({ success: true, clients });
   } catch (error) {
     logger.error('Error getting clients:', error);
@@ -49,8 +81,8 @@ router.get('/', (req, res) => {
 // GET /api/clients/:ruc - Get single client
 router.get('/:ruc', (req, res) => {
   try {
-    const clients = loadClients(req.user.id);
-    const client = clients.find(c => c.ruc === req.params.ruc);
+    migrarClientesLegacySiExiste(req.user.id);
+    const client = clientStorage.getClient(req.params.ruc);
     if (!client) {
       return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
     }
@@ -63,23 +95,19 @@ router.get('/:ruc', (req, res) => {
 // POST /api/clients - Add new client
 router.post('/', (req, res) => {
   try {
-    const clients = loadClients(req.user.id);
+    migrarClientesLegacySiExiste(req.user.id);
     const clientData = req.body;
     
     if (!clientData.ruc) {
       return res.status(400).json({ success: false, error: 'RUC es requerido' });
     }
     
-    // Check duplicate
-    if (clients.find(c => c.ruc === clientData.ruc)) {
-      return res.json({ success: false, error: 'Ya existe un cliente con ese RUC' });
+    const result = clientStorage.addClient(clientData);
+    if (!result.success) {
+      return res.json({ success: false, error: result.error });
     }
     
-    clientData.createdAt = new Date().toISOString();
-    clients.push(clientData);
-    saveClients(req.user.id, clients);
-    
-    res.json({ success: true, client: clientData });
+    res.json({ success: true, client: result.client });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -88,17 +116,12 @@ router.post('/', (req, res) => {
 // PUT /api/clients/:ruc - Update client
 router.put('/:ruc', (req, res) => {
   try {
-    const clients = loadClients(req.user.id);
-    const index = clients.findIndex(c => c.ruc === req.params.ruc);
-    
-    if (index === -1) {
-      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    migrarClientesLegacySiExiste(req.user.id);
+    const result = clientStorage.updateClient(req.params.ruc, req.body);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
     }
-    
-    clients[index] = { ...clients[index], ...req.body, ruc: req.params.ruc };
-    saveClients(req.user.id, clients);
-    
-    res.json({ success: true, client: clients[index] });
+    res.json({ success: true, client: result.client });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -107,15 +130,11 @@ router.put('/:ruc', (req, res) => {
 // DELETE /api/clients/:ruc - Delete client
 router.delete('/:ruc', (req, res) => {
   try {
-    let clients = loadClients(req.user.id);
-    const before = clients.length;
-    clients = clients.filter(c => c.ruc !== req.params.ruc);
-    
-    if (clients.length === before) {
-      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    migrarClientesLegacySiExiste(req.user.id);
+    const result = clientStorage.deleteClient(req.params.ruc);
+    if (!result.success) {
+      return res.status(404).json({ success: false, error: result.error });
     }
-    
-    saveClients(req.user.id, clients);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -125,14 +144,9 @@ router.delete('/:ruc', (req, res) => {
 // GET /api/clients/search/:query - Search clients
 router.get('/search/:query', (req, res) => {
   try {
-    const query = req.params.query.toLowerCase();
-    const clients = loadClients(req.user.id);
-    const results = clients.filter(c => 
-      (c.ruc && c.ruc.toLowerCase().includes(query)) ||
-      (c.empresa && c.empresa.toLowerCase().includes(query)) ||
-      (c.razonSocial && c.razonSocial.toLowerCase().includes(query))
-    );
-    res.json({ success: true, clients: results });
+    migrarClientesLegacySiExiste(req.user.id);
+    const clients = clientStorage.searchClients(req.params.query);
+    res.json({ success: true, clients });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -141,7 +155,8 @@ router.get('/search/:query', (req, res) => {
 // GET /api/clients/stats/summary - Get statistics
 router.get('/stats/summary', (req, res) => {
   try {
-    const clients = loadClients(req.user.id);
+    migrarClientesLegacySiExiste(req.user.id);
+    const clients = clientStorage.getAllClients();
     res.json({
       success: true,
       stats: {
