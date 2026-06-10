@@ -9,10 +9,12 @@
  * @param {Array} listaComprobantes - Lista de comprobantes [{rucEmisor, tipoDoc, serie, numero, filtro}]
  * @param {Object} cliente - Datos del cliente (puede ser solo {ruc} o {ruc, usuario, clave})
  */
-async consultarMasivo(sessionId, listaComprobantes, cliente) {
-    logger.info(`🚀 Iniciando consulta masiva PARALELA de ${listaComprobantes.length} comprobantes...`);
 
-    // Validar que al menos tengamos el RUC
+class CpeScrapingHandlerNew {
+    async consultarMasivo(sessionId, listaComprobantes, cliente) {
+        logger.info(`🚀 Iniciando consulta masiva PARALELA de ${listaComprobantes.length} comprobantes...`);
+
+        // Validar que al menos tengamos el RUC
     if (!cliente || !cliente.ruc) {
         return {
             success: false,
@@ -386,3 +388,5 @@ async consultarMasivo(sessionId, listaComprobantes, cliente) {
         };
     }
 }
+
+module.exports = new CpeScrapingHandlerNew();
