@@ -1,10 +1,15 @@
 /**
- * CPE Routes - CPE scraping and Excel operations
- * Replaces Electron's cpe-* IPC handlers
+ * CPE Routes - API-based CPE consultation + Excel operations
+ * Uses SUNAT API (api-cpe.sunat.gob.pe) with JWT tokens intercepted from SOL login
  */
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 const logger = require('../services/logger');
+
+const CPE_API_URL = 'https://api-cpe.sunat.gob.pe/v1/contribuyente';
 
 function getCpeHandler() {
   try { return require('../services/cpeScrapingHandler'); }
@@ -21,44 +26,355 @@ function getConsultaHandler() {
   catch (e) { logger.warn('consultaFacturaHandler not available:', e.message); return null; }
 }
 
+function getTokenService() {
+  try { return require('../services/cpeTokenService'); }
+  catch (e) { logger.warn('cpeTokenService not available:', e.message); return null; }
+}
+
+/**
+ * Obtiene credenciales SOL para un RUC
+ */
+async function obtenerCredencialesSOL(ruc) {
+  try {
+    const clientStorage = require('../services/clientStorageService');
+    if (clientStorage && clientStorage.currentUserId) {
+      const cliente = clientStorage.getClient(ruc);
+      if (cliente) {
+        return {
+          success: true,
+          data: {
+            ruc: cliente.ruc,
+            razonSocial: cliente.empresa,
+            usuario_sol: cliente.usuario,
+            clave_sol: cliente.clave
+          }
+        };
+      }
+    }
+    return { success: false, error: `No se encontraron credenciales para RUC ${ruc}` };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Transforma la respuesta de la API CPE al formato del frontend
+ */
+function transformarRespuestaAPI(apiData) {
+  if (!apiData || !apiData.comprobantes || apiData.comprobantes.length === 0) {
+    return { estado: 'NO_ENCONTRADO', encontrado: false };
+  }
+
+  const cpe = apiData.comprobantes[0];
+  const emisor = cpe.datosEmisor || {};
+  const receptor = cpe.datosReceptor || {};
+  const totales = cpe.procedenciaMasiva || {};
+  const items = cpe.informacionItems || [];
+
+  const ESTADO_MAP = { '0': 'ACEPTADO', '1': 'ACEPTADO', '2': 'ANULADO', '3': 'AUTORIZADO', '4': 'NO AUTORIZADO' };
+  const TIPO_MAP = { '01': 'FACTURA ELECTRÓNICA', '03': 'BOLETA DE VENTA', '07': 'NOTA DE CRÉDITO', '08': 'NOTA DE DÉBITO' };
+  const MONEDA_MAP = { 'PEN': 'SOL', 'USD': 'DÓLAR AMERICANO', 'EUR': 'EURO' };
+
+  return {
+    encontrado: true,
+    estado: ESTADO_MAP[cpe.indEstadoCpe] || 'ACEPTADO',
+    // Datos del emisor
+    emisor: {
+      ruc: emisor.numRuc,
+      razonSocial: emisor.desRazonSocialEmis,
+      nombreComercial: emisor.desNomComercialEmis,
+      direccion: emisor.desDirEmis,
+      ubigeo: emisor.ubigeoEmis
+    },
+    // Datos del receptor
+    receptor: {
+      tipoDoc: receptor.codDocIdeRecep,
+      numDoc: receptor.numDocIdeRecep,
+      razonSocial: receptor.desRazonSocialRecep,
+      direccion: receptor.dirDetCliente
+    },
+    // Comprobante
+    comprobante: {
+      tipo: cpe.codCpe,
+      tipoDescripcion: TIPO_MAP[cpe.codCpe] || `TIPO ${cpe.codCpe}`,
+      serie: cpe.numSerie,
+      numero: cpe.numCpe,
+      fechaEmision: cpe.fecEmision,
+      fechaRegistro: cpe.fecRegistro,
+      moneda: cpe.codMoneda,
+      monedaDescripcion: MONEDA_MAP[cpe.codMoneda] || cpe.codMoneda,
+      observacion: cpe.desObservacion !== '-' ? cpe.desObservacion : '',
+      formaPago: cpe.codTipTransaccion === '1' ? 'Contado' : 'Crédito'
+    },
+    // Items
+    items: items.map(item => ({
+      cantidad: item.cntItems,
+      unidadMedida: item.desUnidadMedida,
+      codigo: item.desCodigo,
+      descripcion: item.desItem,
+      valorUnitario: item.mtoValUnitario,
+      icbper: item.mtoICBPER,
+      descuento: item.mtoDesc,
+      total: item.mtoImpTotal
+    })),
+    // Totales
+    totales: {
+      descuentoGlobalAfecBI: totales.mtoDtoGlobalAfecBI || 0,
+      totalGravado: totales.mtoTotalValVentaGrabado || 0,
+      totalInafecto: totales.mtoTotalValVentaInafecto || 0,
+      totalExonerado: totales.mtoTotalValVentaExonerado || 0,
+      totalGratuito: totales.mtoTotalValVentaGratuito || 0,
+      totalExportacion: totales.mtoTotalValVentaExportacion || 0,
+      descuentoGlobalNoAfecBI: totales.mtoDtoGlobalNoAfecBI || 0,
+      totalDescuentos: totales.mtoTotalDtos || 0,
+      sumOtrosTributos: totales.mtoSumOtrosTributos || 0,
+      sumOtrosCargos: totales.mtoSumOtrosCargos || 0,
+      sumISC: totales.mtoSumISC || 0,
+      sumIGV: totales.mtoSumIGV || 0,
+      sumICBPER: totales.mtoSumICBPER || 0,
+      totalAnticipo: totales.mtoTotalAnticipo || 0,
+      importeTotal: totales.mtoImporteTotal || 0,
+      redondeo: totales.mtoRedondeo || 0
+    },
+    totalEnLetras: cpe.desMtoTotalLetras,
+    // Para compatibilidad con el sistema anterior
+    razonSocial: emisor.desRazonSocialEmis,
+    rucEmisor: emisor.numRuc,
+    fechaEmision: cpe.fecEmision,
+    importeTotal: totales.mtoImporteTotal ? `S/ ${totales.mtoImporteTotal.toFixed(2)}` : '',
+    // Datos raw para referencia
+    _raw: apiData
+  };
+}
+
+// ═══════════════════════════════════════════
+// CONSULTA INDIVIDUAL via API CPE
+// ═══════════════════════════════════════════
 router.post('/consultar', async (req, res) => {
   try {
-    const handlerObj = getCpeHandler();
-    if (!handlerObj) return res.status(503).json({ success: false, error: 'Módulo CPE no disponible' });
-    const { rucConsultante, rucEmisor, tipoDoc, serie, numero, fecha, monto, filtro } = req.body;
-    const result = await handlerObj.cpeScrapingHandler.consultarCPE(rucConsultante, { rucEmisor, tipoDoc, serie, numero, fecha, monto, filtro });
-    res.json(result);
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    const { rucConsultante, rucEmisor, tipoDoc, serie, numero, filtro = 'recibido' } = req.body;
+
+    if (!rucConsultante || !rucEmisor || !serie || !numero) {
+      return res.json({ success: false, error: 'Faltan campos requeridos' });
+    }
+
+    // 1. Obtener credenciales SOL
+    const creds = await obtenerCredencialesSOL(rucConsultante);
+    if (!creds.success) {
+      return res.json({ success: false, error: creds.error });
+    }
+
+    // 2. Obtener token JWT (cacheado o nuevo login)
+    const tokenService = getTokenService();
+    if (!tokenService) {
+      return res.json({ success: false, error: 'Servicio de token no disponible' });
+    }
+
+    const tokenResult = await tokenService.obtenerToken(rucConsultante, creds.data);
+    if (!tokenResult.success) {
+      return res.json({ success: false, error: tokenResult.error });
+    }
+
+    // 3. Consultar API CPE
+    const digito = filtro === 'emitido' ? '1' : '2';
+    const cpeId = `${rucEmisor}-${tipoDoc || '01'}-${serie}-${numero}-${digito}`;
+    const url = `${CPE_API_URL}/consultacpe/comprobantes/${cpeId}`;
+
+    logger.info(`[CPE API] Consultando: ${cpeId}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${tokenResult.token}`,
+        'Accept': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    // 4. Transformar respuesta
+    const data = transformarRespuestaAPI(response.data);
+
+    return res.json({
+      success: true,
+      data,
+      cpeId,
+      method: 'API'
+    });
+
+  } catch (error) {
+    logger.error('[CPE API] Error en consulta:', error.message);
+
+    if (error.response?.status === 401) {
+      // Token expirado, invalidar cache
+      const tokenService = getTokenService();
+      if (tokenService) tokenService.invalidarToken(req.body.rucConsultante);
+      return res.json({ success: false, error: 'Sesión expirada. Intente nuevamente.' });
+    }
+
+    return res.json({
+      success: false,
+      error: error.response?.data?.message || error.message || 'Error al consultar comprobante'
+    });
+  }
 });
 
+// ═══════════════════════════════════════════
+// CONSULTA MASIVA via API CPE
+// ═══════════════════════════════════════════
+router.post('/consultar-masivo', async (req, res) => {
+  try {
+    const { rucConsultante, listaComprobantes } = req.body;
+
+    if (!rucConsultante || !listaComprobantes || listaComprobantes.length === 0) {
+      return res.json({ success: false, error: 'Faltan datos requeridos' });
+    }
+
+    // 1. Obtener token
+    const creds = await obtenerCredencialesSOL(rucConsultante);
+    if (!creds.success) return res.json({ success: false, error: creds.error });
+
+    const tokenService = getTokenService();
+    if (!tokenService) return res.json({ success: false, error: 'Servicio de token no disponible' });
+
+    const tokenResult = await tokenService.obtenerToken(rucConsultante, creds.data);
+    if (!tokenResult.success) return res.json({ success: false, error: tokenResult.error });
+
+    // 2. Procesar en lotes de 10 en paralelo
+    const BATCH_SIZE = 10;
+    const resultados = [];
+    let procesados = 0;
+    let errores = 0;
+
+    for (let i = 0; i < listaComprobantes.length; i += BATCH_SIZE) {
+      const lote = listaComprobantes.slice(i, i + BATCH_SIZE);
+
+      const promesas = lote.map(async (comp) => {
+        try {
+          const digito = (comp.filtro === 'emitido') ? '1' : '2';
+          const cpeId = `${comp.rucEmisor}-${comp.tipoDoc || '01'}-${comp.serie}-${comp.numero}-${digito}`;
+          const url = `${CPE_API_URL}/consultacpe/comprobantes/${cpeId}`;
+
+          const response = await axios.get(url, {
+            headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Accept': 'application/json' },
+            timeout: 30000
+          });
+
+          const data = transformarRespuestaAPI(response.data);
+          procesados++;
+          return { success: true, request: comp, data, cpeId };
+        } catch (err) {
+          errores++;
+          return {
+            success: false,
+            request: comp,
+            error: err.response?.data?.message || err.message,
+            data: { estado: 'ERROR', encontrado: false }
+          };
+        }
+      });
+
+      const loteResultados = await Promise.all(promesas);
+      resultados.push(...loteResultados);
+    }
+
+    return res.json({
+      success: true,
+      resultados,
+      procesados,
+      errores,
+      total: listaComprobantes.length,
+      method: 'API'
+    });
+
+  } catch (error) {
+    logger.error('[CPE API Masivo] Error:', error.message);
+    return res.json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════
+// DESCARGAS via API CPE
+// ═══════════════════════════════════════════
 router.post('/descargar-pdf', async (req, res) => {
   try {
-    const handlerObj = getCpeHandler();
-    if (!handlerObj) return res.status(503).json({ success: false, error: 'Módulo CPE no disponible' });
-    const { sessionId, cpe } = req.body;
-    const result = await handlerObj.cpeScrapingHandler.descargarPDF(sessionId, cpe);
-    res.json(result);
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    const { rucConsultante, cpe } = req.body;
+    if (!rucConsultante || !cpe) return res.json({ success: false, error: 'Faltan datos' });
+
+    const creds = await obtenerCredencialesSOL(rucConsultante);
+    if (!creds.success) return res.json(creds);
+
+    const tokenService = getTokenService();
+    const tokenResult = await tokenService.obtenerToken(rucConsultante, creds.data);
+    if (!tokenResult.success) return res.json(tokenResult);
+
+    const digito = '2'; // recibido por defecto
+    const cpeId = `${cpe.rucEmisor}-${cpe.tipoDoc || '01'}-${cpe.serie}-${cpe.numero}-${digito}`;
+    const url = `${CPE_API_URL}/consultacpe/comprobantes/${cpeId}/pdf`;
+
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Accept': 'application/pdf' },
+      responseType: 'arraybuffer',
+      timeout: 60000
+    });
+
+    // Guardar archivo
+    const userStorageManager = require('../services/userStorageManager');
+    let downloadDir = path.join(process.cwd(), 'descargas_cpe', rucConsultante);
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      downloadDir = path.join(userStorageManager.getUserFolderPath('downloads'), rucConsultante);
+    }
+    if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
+
+    const filePath = path.join(downloadDir, `${cpe.rucEmisor}-${cpe.tipoDoc || '01'}-${cpe.serie}-${cpe.numero}.pdf`);
+    fs.writeFileSync(filePath, response.data);
+
+    return res.json({ success: true, path: filePath });
+  } catch (error) {
+    logger.error('[CPE API] Error descargando PDF:', error.message);
+    return res.json({ success: false, error: error.message });
+  }
 });
 
 router.post('/descargar-xml', async (req, res) => {
   try {
-    const handlerObj = getCpeHandler();
-    if (!handlerObj) return res.status(503).json({ success: false, error: 'Módulo CPE no disponible' });
-    const { sessionId, cpe } = req.body;
-    const result = await handlerObj.cpeScrapingHandler.descargarXML(sessionId, cpe);
-    res.json(result);
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    const { rucConsultante, cpe } = req.body;
+    if (!rucConsultante || !cpe) return res.json({ success: false, error: 'Faltan datos' });
+
+    const creds = await obtenerCredencialesSOL(rucConsultante);
+    if (!creds.success) return res.json(creds);
+
+    const tokenService = getTokenService();
+    const tokenResult = await tokenService.obtenerToken(rucConsultante, creds.data);
+    if (!tokenResult.success) return res.json(tokenResult);
+
+    const digito = '2';
+    const cpeId = `${cpe.rucEmisor}-${cpe.tipoDoc || '01'}-${cpe.serie}-${cpe.numero}-${digito}`;
+    const url = `${CPE_API_URL}/consultacpe/comprobantes/${cpeId}/xml`;
+
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Accept': 'application/xml' },
+      responseType: 'arraybuffer',
+      timeout: 60000
+    });
+
+    const userStorageManager = require('../services/userStorageManager');
+    let downloadDir = path.join(process.cwd(), 'descargas_cpe', rucConsultante);
+    if (userStorageManager && userStorageManager.isInitialized()) {
+      downloadDir = path.join(userStorageManager.getUserFolderPath('downloads'), rucConsultante);
+    }
+    if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
+
+    const filePath = path.join(downloadDir, `${cpe.rucEmisor}-${cpe.tipoDoc || '01'}-${cpe.serie}-${cpe.numero}.xml`);
+    fs.writeFileSync(filePath, response.data);
+
+    return res.json({ success: true, path: filePath });
+  } catch (error) {
+    logger.error('[CPE API] Error descargando XML:', error.message);
+    return res.json({ success: false, error: error.message });
+  }
 });
 
 router.post('/descargar-cdr', async (req, res) => {
-  try {
-    const handlerObj = getCpeHandler();
-    if (!handlerObj) return res.status(503).json({ success: false, error: 'Módulo CPE no disponible' });
-    const { sessionId, cpe } = req.body;
-    const result = await handlerObj.cpeScrapingHandler.descargarCDR(sessionId, cpe);
-    res.json(result);
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  return res.json({ success: false, error: 'CDR no disponible via API. Use la descarga manual.' });
 });
 
 router.post('/excel/cargar-cliente', async (req, res) => {

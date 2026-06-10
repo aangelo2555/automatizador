@@ -1021,13 +1021,12 @@ function ConsultaFacturaModule() {
     setLoading(true);
     try {
       const result = await window.electronAPI.cpeConsultar({
-        rucConsultante: clienteSeleccionado.ruc, // Importante: pasamos el RUC del consultante
+        rucConsultante: clienteSeleccionado.ruc,
         rucEmisor: formData.rucEmisor,
         tipoDoc: formData.tipoComprobante,
         serie: formData.serie,
         numero: formData.numero,
-        fecha: formData.fecha,
-        monto: formData.monto
+        filtro: 'recibido'
       });
 
       if (result.success) {
@@ -1044,16 +1043,16 @@ function ConsultaFacturaModule() {
 
         // Agregar a la lista de resultados
         const nuevoResultado = {
-          id: result.sessionId, // Usamos el sessionId como ID único
+          id: `cpe_${Date.now()}`,
           formData: { ...formData },
           data: result.data || {},
+          cpeId: result.cpeId,
           timestamp: new Date().toISOString(),
           estado: result.data?.estado || 'DESCONOCIDO'
         };
 
         setListaResultados(prev => [nuevoResultado, ...prev]);
         setResultadoSeleccionado(nuevoResultado);
-        setActiveSession(result.sessionId);
 
         // Notificación discreta
         const Toast = Swal.mixin({
@@ -1065,7 +1064,7 @@ function ConsultaFacturaModule() {
         });
         Toast.fire({
           icon: 'success',
-          title: 'Consulta realizada con éxito'
+          title: `Consulta exitosa (${result.method || 'API'})`
         });
 
       } else {
@@ -1133,13 +1132,9 @@ function ConsultaFacturaModule() {
 
     setLoading(true);
     try {
-      const result = await window.electronAPI.invoke('cpe-scraping-consultar-masivo', {
-        sessionId: activeSession, // Puede ser null, no es requerido
-        listaComprobantes: lista,
-        cliente: {
-          ruc: clienteSeleccionado.ruc
-          // Las credenciales se obtendrán automáticamente del API_SIRE.xlsm en el backend
-        }
+      const result = await window.electronAPI.cpeConsultarMasivo({
+        rucConsultante: clienteSeleccionado.ruc,
+        listaComprobantes: lista
       });
 
       if (result.success) {
@@ -1160,8 +1155,8 @@ function ConsultaFacturaModule() {
 
         Swal.fire({
           title: 'Proceso completado',
-          text: `${result.procesados} facturas procesadas correctamente`,
-          icon: 'success',
+          html: `${result.procesados} facturas procesadas<br>❌ ${result.errores} errores<br><small>Método: ${result.method || 'API'}</small>`,
+          icon: result.errores === 0 ? 'success' : 'warning',
           confirmButtonColor: '#3b82f6'
         });
       } else {
@@ -1302,20 +1297,11 @@ function ConsultaFacturaModule() {
    * Descargar archivos (PDF/XML/CDR)
    */
   const handleDescargar = async (tipo) => {
-    // Usar la sesión del resultado seleccionado si existe, sino la activa
-    const targetSessionId = resultadoSeleccionado?.id || activeSession;
-
-    if (!targetSessionId) {
-      return Swal.fire('Error', 'No hay una sesión activa para este comprobante. Intente consultarlo nuevamente.', 'error');
+    if (!clienteSeleccionado) {
+      return Swal.fire('Error', 'Seleccione un cliente consultante primero.', 'error');
     }
-    // Limpiar sesión anterior si existe - DESHABILITADO POR SOLICITUD DE USUARIO (MANTENER PESTAÑAS)
-    // if (activeSession) {
-    //   await window.electronAPI.cpeCerrarSesion({sessionId: activeSession });
-    //   setActiveSession(null);
-    // }
 
     try {
-      // Construir datos CPE para fallback (Fuzzy Match) en backend
       const cpeData = resultadoSeleccionado ?
         {
           rucEmisor: resultadoSeleccionado.formData.rucEmisor,
@@ -1331,35 +1317,23 @@ function ConsultaFacturaModule() {
         };
 
       const result = await window.electronAPI.cpeDescargar({
-        sessionId: targetSessionId,
+        rucConsultante: clienteSeleccionado.ruc,
         tipo: tipo,
         cpe: cpeData
       });
 
       if (result.success) {
-        // Trigger browser download by requesting file from backend
+        // Trigger browser download
         const downloadUrl = `${window.location.origin}/api/cpe/download?path=${encodeURIComponent(result.path)}&token=${encodeURIComponent(localStorage.getItem('authToken') || '')}`;
         window.open(downloadUrl, '_blank');
 
-        Swal.fire({
-          title: 'Descarga exitosa',
-          text: `El archivo se ha descargado a tu navegador.`,
-          icon: 'success',
-          timer: 3000
-        });
+        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+        Toast.fire({ icon: 'success', title: `${tipo} descargado` });
       } else {
-        Swal.fire({
-          title: 'Error al descargar',
-          text: result.error,
-          icon: 'error'
-        });
+        Swal.fire({ title: 'Error al descargar', text: result.error, icon: 'error' });
       }
     } catch (error) {
-      Swal.fire({
-        title: 'Error',
-        text: error.message,
-        icon: 'error'
-      });
+      Swal.fire({ title: 'Error', text: error.message, icon: 'error' });
     }
   };
 
@@ -1897,7 +1871,7 @@ function ConsultaFacturaModule() {
   };
 
   /**
-   * Renderiza el contenido HTML del resultado (simulaci\u00f3n de documento)
+   * Renderiza la factura como documento formateado (estilo SUNAT)
    */
   const renderDocumentContent = () => {
     if (!resultadoSeleccionado) {
@@ -1911,83 +1885,161 @@ function ConsultaFacturaModule() {
             <polyline points="10 9 9 9 8 9" />
           </svg>
           <h3>Sin comprobante seleccionado</h3>
-          <p>Realice una consulta o seleccione un ítem de la izquierda para ver el detalle.</p>
+          <p>Realice una consulta o seleccione un ítem de la izquierda para ver los archivos adjuntos.</p>
         </div>
       );
     }
 
     const { data } = resultadoSeleccionado;
 
-    // Si tenemos HTML raw del scraping, lo usamos, pero le agregamos el header con el botón
-    if (data.html) {
-      return (
-        <div className="cf-document-paper">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ color: '#1e40af', margin: 0 }}>Resultado de Consulta</h2>
+    // Datos de la API (nuevo formato)
+    const emisor = data.emisor || {};
+    const receptor = data.receptor || {};
+    const comp = data.comprobante || {};
+    const items = data.items || [];
+    const totales = data.totales || {};
+    const monedaSimbolo = comp.moneda === 'USD' ? 'US$' : 'S/';
 
-            <button
-              onClick={handleEnviarEmail}
-              className="cf-btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '13px', marginRight: '8px' }}
-              title="Enviar detalle por correo"
-            >
-              <span style={{ fontSize: '16px' }}>✉️</span> Enviar Gmail
-            </button>
-            <button
-              onClick={handleEnviarWhatsApp}
-              className="cf-btn-success"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '13px' }}
-              title="Enviar archivos por WhatsApp"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-              </svg> WhatsApp
-            </button>
-          </div>
+    const fmtNum = (n) => {
+      if (n === undefined || n === null) return '0.00';
+      return Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
 
-          <div dangerouslySetInnerHTML={{ __html: data.html }} />
-        </div>
-      );
-    }
-
-    // Si no, renderizamos una vista genérica bonita con los datos que tengamos
     return (
       <div className="cf-document-paper">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ color: '#1e40af', margin: 0 }}>Resultado de Consulta</h2>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={handleEnviarEmail}
-              className="cf-btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '13px' }}
-              title="Enviar detalle por correo"
-            >
-              <span style={{ fontSize: '16px' }}>✉️</span> Enviar Gmail
+        {/* Toolbar */}
+        <div className="cf-doc-toolbar">
+          <div className="cf-doc-toolbar-left">
+            <button onClick={() => handleDescargar('PDF')} className="cf-doc-tool-btn" title="Descargar PDF">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              PDF
             </button>
-            <button
-              onClick={handleEnviarWhatsApp}
-              className="cf-btn-success"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '13px' }}
-              title="Enviar archivos por WhatsApp"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-              </svg> WhatsApp
+            <button onClick={() => handleDescargar('XML')} className="cf-doc-tool-btn" title="Descargar XML">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              XML
             </button>
+            <button onClick={handleEnviarEmail} className="cf-doc-tool-btn" title="Enviar por correo">✉️</button>
           </div>
+          <span className={`cf-doc-estado cf-estado-${(data.estado || '').toLowerCase().replace(/\s/g, '-')}`}>
+            {data.estado || 'CONSULTADO'}
+          </span>
         </div>
 
-        <div style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-          <p><strong>Estado:</strong> {data.estado || 'Desconocido'}</p>
-          <hr style={{ margin: '15px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-          <p><strong>Consultante:</strong> {clienteSeleccionado?.empresa} ({clienteSeleccionado?.ruc})</p>
-          <p><strong>RUC Emisor:</strong> {resultadoSeleccionado.formData.rucEmisor}</p>
-          <p><strong>Comprobante:</strong> {resultadoSeleccionado.formData.tipoComprobante === '01' ? 'Factura' : 'Boleta'} {resultadoSeleccionado.formData.serie}-{resultadoSeleccionado.formData.numero}</p>
-          {/* Aquí se mostrarán más detalles cuando actualicemos el scraper */}
-          {data.razonSocial && <p><strong>Razón Social:</strong> {data.razonSocial}</p>}
-          {data.fechaEmision && <p><strong>Fecha Emisión:</strong> {data.fechaEmision}</p>}
-          {data.importeTotal && <p><strong>Importe Total:</strong> {data.importeTotal}</p>}
+        {/* Documento Factura */}
+        <div className="cf-factura">
+          {/* Header: Emisor + Tipo Comprobante */}
+          <div className="cf-factura-header">
+            <div className="cf-factura-emisor">
+              <div className="cf-factura-emisor-nombre">{emisor.razonSocial || data.razonSocial || '—'}</div>
+              {emisor.nombreComercial && emisor.nombreComercial !== emisor.razonSocial && (
+                <div className="cf-factura-emisor-comercial">{emisor.nombreComercial}</div>
+              )}
+              <div className="cf-factura-emisor-dir">{emisor.direccion || ''}</div>
+              {emisor.ubigeo && <div className="cf-factura-emisor-dir">{emisor.ubigeo}</div>}
+            </div>
+            <div className="cf-factura-tipo-box">
+              <div className="cf-factura-tipo-label">{comp.tipoDescripcion || 'FACTURA ELECTRÓNICA'}</div>
+              <div className="cf-factura-tipo-ruc">RUC: {emisor.ruc || data.rucEmisor || '—'}</div>
+              <div className="cf-factura-tipo-num">{comp.serie || ''}-{comp.numero || ''}</div>
+            </div>
+          </div>
+
+          {/* Datos principales */}
+          <div className="cf-factura-datos">
+            <div className="cf-factura-dato-row">
+              <span className="cf-factura-dato-label">Fecha de Emisión</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{comp.fechaEmision || data.fechaEmision || '—'}</span>
+              <span className="cf-factura-dato-label" style={{marginLeft: '30px'}}>Forma de pago</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{comp.formaPago || 'Contado'}</span>
+            </div>
+            <div className="cf-factura-dato-row">
+              <span className="cf-factura-dato-label">Señor(es)</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{receptor.razonSocial || '—'}</span>
+            </div>
+            <div className="cf-factura-dato-row">
+              <span className="cf-factura-dato-label">RUC</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{receptor.numDoc || '—'}</span>
+            </div>
+            <div className="cf-factura-dato-row">
+              <span className="cf-factura-dato-label">Dirección del Cliente</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{receptor.direccion || '—'}</span>
+            </div>
+            <div className="cf-factura-dato-row">
+              <span className="cf-factura-dato-label">Tipo de Moneda</span>
+              <span className="cf-factura-dato-sep">:</span>
+              <span className="cf-factura-dato-value">{comp.monedaDescripcion || 'SOL'}</span>
+            </div>
+            {comp.observacion && (
+              <div className="cf-factura-dato-row">
+                <span className="cf-factura-dato-label">Observación</span>
+                <span className="cf-factura-dato-sep">:</span>
+                <span className="cf-factura-dato-value">{comp.observacion}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Tabla de Items */}
+          <table className="cf-factura-items">
+            <thead>
+              <tr>
+                <th style={{width:'60px'}}>Cantidad</th>
+                <th style={{width:'80px'}}>Unidad Medida</th>
+                <th style={{width:'70px'}}>Código</th>
+                <th>Descripción</th>
+                <th style={{width:'110px'}}>Valor Unitario</th>
+                <th style={{width:'70px'}}>ICBPER</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length > 0 ? items.map((item, idx) => (
+                <tr key={idx}>
+                  <td style={{textAlign:'center'}}>{item.cantidad}</td>
+                  <td style={{textAlign:'center'}}>{item.unidadMedida}</td>
+                  <td style={{textAlign:'center'}}>{item.codigo}</td>
+                  <td>{item.descripcion}</td>
+                  <td style={{textAlign:'right'}}>{fmtNum(item.valorUnitario)}</td>
+                  <td style={{textAlign:'right'}}>{fmtNum(item.icbper)}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={6} style={{textAlign:'center', color:'#94a3b8'}}>Sin información de ítems</td></tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* Totales */}
+          <div className="cf-factura-totales-wrapper">
+            <div className="cf-factura-letras">
+              SON: {data.totalEnLetras || ''}
+            </div>
+            <div className="cf-factura-totales">
+              <div className="cf-factura-total-row"><span>Descuento Global *</span><span>{monedaSimbolo} {fmtNum(totales.descuentoGlobalAfecBI)}</span></div>
+              <div className="cf-factura-total-row"><span>Total valor venta gravado</span><span>{monedaSimbolo} {fmtNum(totales.totalGravado)}</span></div>
+              <div className="cf-factura-total-row"><span>Total valor venta inafecto</span><span>{monedaSimbolo} {fmtNum(totales.totalInafecto)}</span></div>
+              <div className="cf-factura-total-row"><span>Total valor venta exonerado</span><span>{monedaSimbolo} {fmtNum(totales.totalExonerado)}</span></div>
+              <div className="cf-factura-total-row"><span>Total valor venta gratuito</span><span>{monedaSimbolo} {fmtNum(totales.totalGratuito)}</span></div>
+              <div className="cf-factura-total-row"><span>Total valor venta exportación</span><span>{monedaSimbolo} {fmtNum(totales.totalExportacion)}</span></div>
+              <div className="cf-factura-total-row"><span>Descuento Global **</span><span>{monedaSimbolo} {fmtNum(totales.descuentoGlobalNoAfecBI)}</span></div>
+              <div className="cf-factura-total-row"><span>Total descuentos</span><span>{monedaSimbolo} {fmtNum(totales.totalDescuentos)}</span></div>
+              <div className="cf-factura-total-row"><span>Sumatoria otros tributos</span><span>{monedaSimbolo} {fmtNum(totales.sumOtrosTributos)}</span></div>
+              <div className="cf-factura-total-row"><span>Sumatoria otros cargos</span><span>{monedaSimbolo} {fmtNum(totales.sumOtrosCargos)}</span></div>
+              <div className="cf-factura-total-row"><span>Sumatoria ISC</span><span>{monedaSimbolo} {fmtNum(totales.sumISC)}</span></div>
+              <div className="cf-factura-total-row cf-factura-total-highlight"><span>Sumatoria IGV</span><span>{monedaSimbolo} {fmtNum(totales.sumIGV)}</span></div>
+              <div className="cf-factura-total-row"><span>Sumatoria ICBPER</span><span>{monedaSimbolo} {fmtNum(totales.sumICBPER)}</span></div>
+              <div className="cf-factura-total-row"><span>Monto total del anticipo</span><span>{monedaSimbolo} {fmtNum(totales.totalAnticipo)}</span></div>
+              <div className="cf-factura-total-row"><span>Monto de Redondeo</span><span>{monedaSimbolo} {fmtNum(totales.redondeo)}</span></div>
+              <div className="cf-factura-total-row cf-factura-total-final"><span>Importe total</span><span>{monedaSimbolo} {fmtNum(totales.importeTotal)}</span></div>
+            </div>
+          </div>
+
+          {/* Nota al pie */}
+          <div className="cf-factura-footer">
+            Esta es una representación impresa de la factura electrónica, generada en el Sistema de SUNAT. Puede verificarla utilizando su clave SOL.
+          </div>
         </div>
       </div>
     );

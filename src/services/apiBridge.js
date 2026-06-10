@@ -259,7 +259,7 @@ const electronAPIBridge = {
   },
 
   // ═══════════════════════════════
-  //  CPE SCRAPING
+  //  CPE API
   // ═══════════════════════════════
   cpeConsultar: async (datos) => {
     return apiFetch('/cpe/consultar', {
@@ -268,13 +268,23 @@ const electronAPIBridge = {
     });
   },
 
+  cpeConsultarMasivo: async (datos) => {
+    return apiFetch('/cpe/consultar-masivo', {
+      method: 'POST',
+      body: JSON.stringify(datos)
+    });
+  },
+
   cpeDescargar: async (datos) => {
     const typeMap = { 'pdf': 'descargar-pdf', 'xml': 'descargar-xml', 'cdr': 'descargar-cdr' };
     const endpoint = typeMap[(datos.tipo || '').toLowerCase()];
-    if (!endpoint) return { success: false, error: 'Tipo de descarga no válido' };
+    if (!endpoint) return { success: false, error: 'Tipo de descarga no v\u00e1lido' };
     return apiFetch(`/cpe/${endpoint}`, {
       method: 'POST',
-      body: JSON.stringify(datos)
+      body: JSON.stringify({
+        rucConsultante: datos.rucConsultante,
+        cpe: datos.cpe
+      })
     });
   },
 
