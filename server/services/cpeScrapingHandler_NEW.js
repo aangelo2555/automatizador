@@ -388,5 +388,6 @@ class CpeScrapingHandlerNew {
         };
     }
 }
+}
 
 module.exports = new CpeScrapingHandlerNew();
