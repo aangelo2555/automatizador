@@ -199,11 +199,11 @@ class CPEScrapingHandler {
 
             // Rellenar formulario
             logger.info('Rellenando credenciales...');
-            await page.fill('#txtRuc', cliente.ruc);
+            await page.fill('#txtRuc', String(cliente.ruc || '').trim());
             await page.waitForTimeout(500);
-            await page.fill('#txtUsuario', cliente.usuario_sol);
+            await page.fill('#txtUsuario', String(cliente.usuario_sol || '').trim());
             await page.waitForTimeout(500);
-            await page.fill('#txtContrasena', cliente.clave_sol);
+            await page.fill('#txtContrasena', String(cliente.clave_sol || '').trim());
             await page.waitForTimeout(500);
 
             logger.info('Enviando login...', { ruc: cliente.ruc, usuario: cliente.usuario_sol });

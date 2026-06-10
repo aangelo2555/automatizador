@@ -205,9 +205,9 @@ class BuzonHandler {
       await page.waitForSelector('#txtRuc', { timeout });
 
       // Rellenar formulario de login
-      await page.fill('#txtRuc', cliente.ruc);
-      await page.fill('#txtUsuario', cliente.usuario);
-      await page.fill('#txtContrasena', cliente.clave);
+      await page.fill('#txtRuc', String(cliente.ruc || '').trim());
+      await page.fill('#txtUsuario', String(cliente.usuario || '').trim());
+      await page.fill('#txtContrasena', String(cliente.clave || '').trim());
 
       logger.info('Formulario de login completado, enviando...', { ruc });
 

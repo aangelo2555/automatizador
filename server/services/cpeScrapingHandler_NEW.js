@@ -132,11 +132,11 @@ class CpeScrapingHandlerNew {
                 await page.waitForSelector('#txtRuc', { timeout: 30000 });
 
                 // Rellenar formulario de login
-                await page.fill('#txtRuc', credencialesCompletas.ruc);
+                await page.fill('#txtRuc', String(credencialesCompletas.ruc || '').trim());
                 await page.waitForTimeout(500);
-                await page.fill('#txtUsuario', credencialesCompletas.usuario_sol);
+                await page.fill('#txtUsuario', String(credencialesCompletas.usuario_sol || '').trim());
                 await page.waitForTimeout(500);
-                await page.fill('#txtContrasena', credencialesCompletas.clave_sol);
+                await page.fill('#txtContrasena', String(credencialesCompletas.clave_sol || '').trim());
                 await page.waitForTimeout(500);
 
                 logger.info(`Browser ${idx + 1}: Enviando login...`);

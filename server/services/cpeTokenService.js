@@ -211,13 +211,15 @@ async function _loginYCapturarToken(ruc, credenciales) {
   let page = null;
 
   try {
-    const { usuario_sol, clave_sol } = credenciales;
+    const usuarioStr = String(credenciales.usuario_sol || '').trim();
+    const claveStr = String(credenciales.clave_sol || '').trim();
+    const rucStr = String(ruc || '').trim();
 
-    if (!usuario_sol || !clave_sol) {
+    if (!usuarioStr || !claveStr) {
       return { success: false, error: 'Faltan credenciales SOL (usuario y clave)' };
     }
 
-    logger.info(`[CPE Token] Iniciando login SOL para RUC ${ruc}...`);
+    logger.info(`[CPE Token] Iniciando login SOL para RUC ${rucStr}...`);
 
     // Lanzar browser headless
     browser = await chromium.launch({
@@ -279,11 +281,11 @@ async function _loginYCapturarToken(ruc, credenciales) {
     }
 
     // Rellenar formulario
-    await page.fill('#txtRuc', ruc);
+    await page.fill('#txtRuc', rucStr);
     await page.waitForTimeout(300);
-    await page.fill('#txtUsuario', usuario_sol);
+    await page.fill('#txtUsuario', usuarioStr);
     await page.waitForTimeout(300);
-    await page.fill('#txtContrasena', clave_sol);
+    await page.fill('#txtContrasena', claveStr);
     await page.waitForTimeout(300);
 
     logger.info('[CPE Token] Enviando login...');
